@@ -1,0 +1,34 @@
+# Acceptance Tests
+
+These are project-level acceptance criteria for the eventual generator. They are broader than unit tests and describe what the completed generator must reliably satisfy.
+
+## Determinism
+
+- The same seed and configuration produce identical map outputs across repeated runs.
+- Different seeds can produce different maps without breaking structural validity.
+
+## Grid Math
+
+- Hex neighbor calculations are correct for pointy-top axial coordinates.
+- Distance calculations are symmetric and return zero for a tile compared with itself.
+
+## Hydrology
+
+- No river path moves uphill.
+- Every river terminates in either a lake or the ocean.
+
+## Climate And Biomes
+
+- Every generated tile receives a biome assignment.
+- Moisture and temperature data are present on every tile where required by the biome layer.
+
+## Starting Regions
+
+- Candidate starting regions must contain enough practical land to begin play.
+- Candidate starting regions must avoid obviously invalid terrain traps such as isolated unusable tiles or impossible early expansion.
+- Start validation must be deterministic for a fixed map and rule set.
+
+## Runtime Stability
+
+- The generator runs without crashes for supported configuration ranges.
+- Debug-oriented outputs can be produced for inspection when validation fails.

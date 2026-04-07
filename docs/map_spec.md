@@ -1,0 +1,41 @@
+# Map Specification
+
+## V1 Design Intent
+
+The intended v1 output is a macro-scale strategy map composed of pointy-top hexes. These are map-level gameplay tiles only. There is no subhex system in this repository at this stage.
+
+## Geometry
+
+- hex orientation: pointy-top
+- coordinate storage and interface: axial coordinates `(q, r)`
+- algorithm helpers: cube-coordinate conversion where useful
+- map topology: finite and non-wrapping
+
+## Intended Tile-Level Outputs
+
+Each generated hex should eventually expose at least the following data:
+
+- coordinate
+- elevation
+- water or land classification
+- moisture
+- temperature
+- biome
+- river data
+- lake flag where applicable
+- start suitability metadata placeholder
+
+## Desired Map Qualities
+
+The generator should eventually aim for:
+
+- interesting coastlines instead of uniform blobs
+- meaningful land masses with navigable shapes
+- plausible river placement driven by terrain
+- biome variety that follows climate logic
+- useful buildable land for expansion
+- reasonable starting areas for later validation
+
+## Boundaries For This Repository
+
+This repository currently concerns only macro hex map generation. It does not define tactical combat grids, subhex terrain detail, or final art/rendering systems.

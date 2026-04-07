@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "riftandreign-mapgen"
+version = "0.1.0"
+description = "Deterministic map generator scaffold for the RiftandReign hex-based 4X project."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "RiftandReign" },
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+rnr-mapgen = "rnr_mapgen.main:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
