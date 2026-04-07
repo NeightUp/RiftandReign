@@ -54,6 +54,11 @@ Current implementation note:
 - Outputs: biome value for every tile
 - Purpose: convert raw environmental data into terrain categories that are usable by downstream game systems
 
+Current implementation note:
+
+- the repository now assigns a compact first-pass land-biome set from scalar fields, elevation, and light river support
+- this pass is intentionally simple and is meant as a readable world layer rather than a final biome system
+
 ## 7. Start-Region Validation
 
 - Inputs: full tile map, terrain outputs, suitability metadata

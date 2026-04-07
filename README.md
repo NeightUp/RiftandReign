@@ -1,6 +1,6 @@
 # RiftandReign Map Generator
 
-This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, first-pass land and water classification, and first-pass hydrology groundwork.
+This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, first-pass land and water classification, first-pass hydrology groundwork, and first-pass biome classification.
 
 The repository is focused on the map generator only. The intended long-term pipeline is:
 
@@ -24,7 +24,8 @@ In scope right now:
 - deterministic scalar fields for elevation, moisture, and temperature
 - deterministic first-pass land and water classification
 - deterministic first-pass hydrology and river marking
-- debug-oriented CLI terrain and river summary with ASCII preview
+- deterministic first-pass biome classification
+- debug-oriented CLI terrain, river, and biome summary with ASCII preview
 - documentation for scope, map spec, pipeline, and data model
 - project tracking via changelog and detailed change notes
 - focused tests
@@ -57,4 +58,4 @@ Start with [docs/repo_index.md](docs/repo_index.md). It is the authoritative nav
 
 ## Current Status
 
-The CLI now builds a deterministic board, applies normalized scalar fields, classifies land and water, generates first-pass hydrology, and prints a concise terrain and river summary with an ASCII preview. Biomes, start validation, and more complete hydrology refinement are still intentionally deferred.
+The CLI now builds a deterministic board, applies normalized scalar fields, classifies land and water, generates first-pass hydrology, classifies first-pass biomes, and prints a concise terrain summary with biome counts and an ASCII preview. Start validation and more complete climate and hydrology refinement are still intentionally deferred.

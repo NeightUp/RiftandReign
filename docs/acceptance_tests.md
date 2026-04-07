@@ -33,6 +33,8 @@ These are project-level acceptance criteria for the eventual generator. They are
 ## Climate And Biomes
 
 - Every generated tile receives a biome assignment.
+- Water tiles remain distinct from land biome labels.
+- The default supported map setup should produce multiple land biome types rather than a single uniform land class.
 - Moisture and temperature data are present on every tile where required by the biome layer.
 
 ## Starting Regions

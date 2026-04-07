@@ -40,3 +40,10 @@ This file records the high-level history of meaningful repository changes. Detai
 - Corrected PowerShell activation examples to use `.\.venv\Scripts\Activate.ps1` in repository workflow docs.
 - Added focused pytest coverage for hydrology determinism, downhill routing, river placement constraints, and ASCII preview shape.
 - Updated repository tracking and navigation docs for the new hydrology layer.
+
+## Step 0006 - First-Pass Biomes
+
+- Added deterministic first-pass biome classification for land tiles using explicit temperature, moisture, elevation, and light river-support rules.
+- Updated the CLI to include biome counts and a biome-aware ASCII preview.
+- Added focused pytest coverage for biome determinism, land coverage, water handling, metadata preservation, biome diversity, and preview shape.
+- Updated repository tracking and navigation docs for the new biome layer while preserving the Windows PowerShell workflow.

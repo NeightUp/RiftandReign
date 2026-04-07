@@ -55,7 +55,12 @@ For the current hydrology step:
 - `flow_accumulation` stores simple upstream contribution for land routing
 - `has_river` marks tiles selected as first-pass river carriers
 - `river_strength` stores a lightweight derived river magnitude
-- lake, biome, and start-suitability fields remain placeholders
+
+For the current biome step:
+
+- `biome` stores a first-pass land biome label
+- water tiles keep `biome` unset
+- lake and start-suitability fields remain placeholders
 
 ## MapData
 
