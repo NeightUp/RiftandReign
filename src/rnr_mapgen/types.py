@@ -39,6 +39,7 @@ class TileData:
     river_strength: float = 0.0
     is_lake: bool = False
     start_suitability: float | None = None
+    is_start_candidate: bool = False
 
 
 @dataclass(slots=True)

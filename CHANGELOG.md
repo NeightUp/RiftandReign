@@ -47,3 +47,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Updated the CLI to include biome counts and a biome-aware ASCII preview.
 - Added focused pytest coverage for biome determinism, land coverage, water handling, metadata preservation, biome diversity, and preview shape.
 - Updated repository tracking and navigation docs for the new biome layer while preserving the Windows PowerShell workflow.
+
+## Step 0007 - Start Suitability
+
+- Added deterministic first-pass start suitability scoring for land tiles with explicit land-neighborhood, biome, river, edge, and cramped-terrain rules.
+- Added deterministic top-candidate selection for likely player starts without placing players yet.
+- Updated the CLI to include start-eligible counts and top start candidate summaries alongside the existing biome preview.
+- Added focused pytest coverage for start scoring determinism, candidate filtering, ordering stability, and data preservation.
+- Updated repository tracking and navigation docs for the new start-suitability layer.

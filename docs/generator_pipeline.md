@@ -65,6 +65,11 @@ Current implementation note:
 - Outputs: validated starting-region assessments and reject or accept signals for the map
 - Purpose: ensure generated maps have regions that are practical for expansion and later gameplay
 
+Current implementation note:
+
+- the repository now computes first-pass per-tile start suitability scores and marks likely candidates
+- final multi-player placement and full validation rules are still intentionally deferred
+
 ## 8. Debug Output
 
 - Inputs: complete map data and intermediate layers

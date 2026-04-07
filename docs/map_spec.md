@@ -42,6 +42,7 @@ Current implementation note:
 - this pass is intended to produce usable early coastlines and land patches, not final terrain quality
 - the repository now also performs first-pass downhill routing and sparse river marking on land tiles
 - the repository now assigns first-pass land biome labels for readable world-layer output
+- the repository now assigns first-pass start suitability scores without placing players yet
 
 ## Boundaries For This Repository
 

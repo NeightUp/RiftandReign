@@ -39,6 +39,7 @@ These are project-level acceptance criteria for the eventual generator. They are
 
 ## Starting Regions
 
+- Land tiles can be scored for first-pass start suitability in a deterministic way.
 - Candidate starting regions must contain enough practical land to begin play.
 - Candidate starting regions must avoid obviously invalid terrain traps such as isolated unusable tiles or impossible early expansion.
 - Start validation must be deterministic for a fixed map and rule set.

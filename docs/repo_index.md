@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, first-pass biome classification, and tested hex-grid math. Start validation and later pipeline refinements are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
 
 ## Recommended Reading Order
 
@@ -23,6 +23,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 13. `docs/changes/0004_land_water_classification.md`
 14. `docs/changes/0005_first_pass_hydrology.md`
 15. `docs/changes/0006_first_pass_biomes.md`
+16. `docs/changes/0007_start_suitability.md`
 
 ## Current Top-Level Structure
 
@@ -48,7 +49,8 @@ RiftandReign/
 |       +-- 0003_scalar_fields.md
 |       +-- 0004_land_water_classification.md
 |       +-- 0005_first_pass_hydrology.md
-|       `-- 0006_first_pass_biomes.md
+|       +-- 0006_first_pass_biomes.md
+|       `-- 0007_start_suitability.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
@@ -60,6 +62,7 @@ RiftandReign/
 |       +-- hydrology.py
 |       +-- hex.py
 |       +-- main.py
+|       +-- starts.py
 |       +-- terrain.py
 |       `-- types.py
 `-- tests/
@@ -67,6 +70,7 @@ RiftandReign/
     +-- test_biomes.py
     +-- test_fields.py
     +-- test_hydrology.py
+    +-- test_starts.py
     +-- test_terrain.py
     `-- test_hex.py
 ```
@@ -105,6 +109,8 @@ RiftandReign/
   Purpose: detailed historical record for the first-pass hydrology groundwork step.
 - `docs/changes/0006_first_pass_biomes.md`
   Purpose: detailed historical record for the first-pass biome classification step.
+- `docs/changes/0007_start_suitability.md`
+  Purpose: detailed historical record for the first-pass start suitability scoring step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
@@ -118,7 +124,9 @@ RiftandReign/
 - `src/rnr_mapgen/hydrology.py`
   Purpose: deterministic downhill routing, flow accumulation, river marking, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
-  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, assigns first-pass biomes, and prints a concise debug summary.
+  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, assigns first-pass biomes, scores start suitability, and prints a concise debug summary.
+- `src/rnr_mapgen/starts.py`
+  Purpose: deterministic start suitability scoring and top-candidate selection helpers.
 - `src/rnr_mapgen/terrain.py`
   Purpose: deterministic first-pass land and water classification plus ASCII terrain preview helpers.
 - `src/rnr_mapgen/hex.py`
@@ -133,6 +141,8 @@ RiftandReign/
   Purpose: focused pytest coverage for scalar-field determinism, value ranges, and metadata preservation.
 - `tests/test_hydrology.py`
   Purpose: focused pytest coverage for hydrology determinism, downhill routing, river placement constraints, and ASCII preview shape.
+- `tests/test_starts.py`
+  Purpose: focused pytest coverage for start suitability determinism, candidate filtering, ordering stability, and data preservation.
 - `tests/test_terrain.py`
   Purpose: focused pytest coverage for terrain determinism, land and water layout, metadata preservation, and ASCII preview shape.
 - `tests/test_hex.py`
@@ -153,6 +163,7 @@ RiftandReign/
 - Biome tests: `tests/test_biomes.py`
 - Field tests: `tests/test_fields.py`
 - Hydrology tests: `tests/test_hydrology.py`
+- Start tests: `tests/test_starts.py`
 - Terrain tests: `tests/test_terrain.py`
 - Hex tests: `tests/test_hex.py`
 
@@ -192,15 +203,17 @@ Implemented now:
 - deterministic first-pass land and water classification
 - deterministic first-pass downhill routing and sparse river marking
 - deterministic first-pass land-biome classification
+- deterministic first-pass start suitability scoring
 - lightweight map-related dataclasses
-- debug-oriented CLI terrain, river, and biome summary with ASCII preview
+- debug-oriented CLI terrain, river, biome, and start summary with ASCII preview
 - repository documentation and project tracking
-- focused unit tests for hex utilities, board construction, scalar fields, terrain classification, hydrology, and biomes
+- focused unit tests for hex utilities, board construction, scalar fields, terrain classification, hydrology, biomes, and start suitability
 
 Not implemented yet:
 
 - lake-system simulation
 - climate zoning beyond scalar groundwork
+- final multi-player start placement
 - start-region validation logic
 - debug visualization output beyond documentation
 

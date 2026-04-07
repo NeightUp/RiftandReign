@@ -60,7 +60,12 @@ For the current biome step:
 
 - `biome` stores a first-pass land biome label
 - water tiles keep `biome` unset
-- lake and start-suitability fields remain placeholders
+
+For the current start-suitability step:
+
+- `start_suitability` stores a first-pass spawn-quality score for land tiles
+- `is_start_candidate` marks tiles that pass the first-pass suitability threshold
+- lake-related fields remain placeholders
 
 ## MapData
 
