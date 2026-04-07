@@ -40,6 +40,7 @@ Current implementation note:
 
 - the repository now performs a first-pass deterministic land and water classification
 - this pass is intended to produce usable early coastlines and land patches, not final terrain quality
+- the repository now also performs first-pass downhill routing and sparse river marking on land tiles
 
 ## Boundaries For This Repository
 

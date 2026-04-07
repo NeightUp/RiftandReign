@@ -1,6 +1,6 @@
 # RiftandReign Map Generator
 
-This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, and a first-pass land and water classification pass.
+This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, first-pass land and water classification, and first-pass hydrology groundwork.
 
 The repository is focused on the map generator only. The intended long-term pipeline is:
 
@@ -23,7 +23,8 @@ In scope right now:
 - finite non-wrapping board construction
 - deterministic scalar fields for elevation, moisture, and temperature
 - deterministic first-pass land and water classification
-- debug-oriented CLI terrain summary and ASCII preview
+- deterministic first-pass hydrology and river marking
+- debug-oriented CLI terrain and river summary with ASCII preview
 - documentation for scope, map spec, pipeline, and data model
 - project tracking via changelog and detailed change notes
 - focused tests
@@ -43,7 +44,7 @@ Python 3.11+ is required.
 Local Windows workflow:
 
 ```powershell
-.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 python -m pip install -e .[dev]
 python -m pytest
 python -m rnr_mapgen
@@ -56,4 +57,4 @@ Start with [docs/repo_index.md](docs/repo_index.md). It is the authoritative nav
 
 ## Current Status
 
-The CLI now builds a deterministic board, applies normalized scalar fields, classifies land and water, and prints a concise terrain summary with an ASCII preview. Rivers, hydrology, lakes as a simulation system, biomes, and validation logic are still intentionally deferred.
+The CLI now builds a deterministic board, applies normalized scalar fields, classifies land and water, generates first-pass hydrology, and prints a concise terrain and river summary with an ASCII preview. Biomes, start validation, and more complete hydrology refinement are still intentionally deferred.

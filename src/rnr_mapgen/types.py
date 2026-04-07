@@ -34,6 +34,9 @@ class TileData:
     temperature: float = 0.0
     biome: str | None = None
     river_flow_to: HexCoord | None = None
+    flow_accumulation: float = 0.0
+    has_river: bool = False
+    river_strength: float = 0.0
     is_lake: bool = False
     start_suitability: float | None = None
 

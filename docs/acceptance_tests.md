@@ -26,7 +26,9 @@ These are project-level acceptance criteria for the eventual generator. They are
 ## Hydrology
 
 - No river path moves uphill.
-- Every river terminates in either a lake or the ocean.
+- River features are only marked on land tiles.
+- First-pass hydrology produces deterministic downhill routing and some river presence on supported maps.
+- Full lake or ocean termination behavior remains a later milestone.
 
 ## Climate And Biomes
 

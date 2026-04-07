@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, and tested hex-grid math. Rivers, hydrology, and later pipeline stages are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, and tested hex-grid math. Biomes and later pipeline stages are still not implemented.
 
 ## Recommended Reading Order
 
@@ -21,6 +21,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 11. `docs/changes/0002_board_foundation.md`
 12. `docs/changes/0003_scalar_fields.md`
 13. `docs/changes/0004_land_water_classification.md`
+14. `docs/changes/0005_first_pass_hydrology.md`
 
 ## Current Top-Level Structure
 
@@ -44,7 +45,8 @@ RiftandReign/
 |       +-- 0001_initial_scaffold.md
 |       +-- 0002_board_foundation.md
 |       +-- 0003_scalar_fields.md
-|       `-- 0004_land_water_classification.md
+|       +-- 0004_land_water_classification.md
+|       `-- 0005_first_pass_hydrology.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
@@ -52,6 +54,7 @@ RiftandReign/
 |       +-- __main__.py
 |       +-- board.py
 |       +-- fields.py
+|       +-- hydrology.py
 |       +-- hex.py
 |       +-- main.py
 |       +-- terrain.py
@@ -59,6 +62,7 @@ RiftandReign/
 `-- tests/
     +-- test_board.py
     +-- test_fields.py
+    +-- test_hydrology.py
     +-- test_terrain.py
     `-- test_hex.py
 ```
@@ -93,6 +97,8 @@ RiftandReign/
   Purpose: detailed historical record for the scalar-field groundwork and workflow documentation step.
 - `docs/changes/0004_land_water_classification.md`
   Purpose: detailed historical record for the first-pass land and water classification step.
+- `docs/changes/0005_first_pass_hydrology.md`
+  Purpose: detailed historical record for the first-pass hydrology groundwork step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
@@ -101,8 +107,10 @@ RiftandReign/
   Purpose: deterministic finite board construction.
 - `src/rnr_mapgen/fields.py`
   Purpose: deterministic scalar-field generation for elevation, moisture, and temperature.
+- `src/rnr_mapgen/hydrology.py`
+  Purpose: deterministic downhill routing, flow accumulation, river marking, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
-  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, and prints a concise debug summary.
+  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, and prints a concise debug summary.
 - `src/rnr_mapgen/terrain.py`
   Purpose: deterministic first-pass land and water classification plus ASCII terrain preview helpers.
 - `src/rnr_mapgen/hex.py`
@@ -113,6 +121,8 @@ RiftandReign/
   Purpose: focused pytest coverage for deterministic board construction and metadata preservation.
 - `tests/test_fields.py`
   Purpose: focused pytest coverage for scalar-field determinism, value ranges, and metadata preservation.
+- `tests/test_hydrology.py`
+  Purpose: focused pytest coverage for hydrology determinism, downhill routing, river placement constraints, and ASCII preview shape.
 - `tests/test_terrain.py`
   Purpose: focused pytest coverage for terrain determinism, land and water layout, metadata preservation, and ASCII preview shape.
 - `tests/test_hex.py`
@@ -131,6 +141,7 @@ RiftandReign/
 - Automated tests live in `tests/`
 - Board tests: `tests/test_board.py`
 - Field tests: `tests/test_fields.py`
+- Hydrology tests: `tests/test_hydrology.py`
 - Terrain tests: `tests/test_terrain.py`
 - Hex tests: `tests/test_hex.py`
 
@@ -168,15 +179,15 @@ Implemented now:
 - finite non-wrapping board creation
 - deterministic scalar fields for elevation, moisture, and temperature
 - deterministic first-pass land and water classification
+- deterministic first-pass downhill routing and sparse river marking
 - lightweight map-related dataclasses
-- debug-oriented CLI terrain summary and ASCII preview
+- debug-oriented CLI terrain and river summary with ASCII preview
 - repository documentation and project tracking
-- focused unit tests for hex utilities, board construction, scalar fields, and terrain classification
+- focused unit tests for hex utilities, board construction, scalar fields, terrain classification, and hydrology
 
 Not implemented yet:
 
-- hydrology
-- rivers and lake-system simulation
+- lake-system simulation
 - climate zoning beyond scalar groundwork
 - biome classification
 - start-region validation logic

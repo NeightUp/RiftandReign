@@ -48,7 +48,14 @@ For the current terrain-classification step:
 
 - `is_water` is populated by the first-pass terrain classifier
 - `elevation`, `moisture`, and `temperature` remain available for later systems
-- river, lake, biome, and start-suitability fields remain placeholders
+
+For the current hydrology step:
+
+- `river_flow_to` stores the first-pass downhill outflow target when one exists
+- `flow_accumulation` stores simple upstream contribution for land routing
+- `has_river` marks tiles selected as first-pass river carriers
+- `river_strength` stores a lightweight derived river magnitude
+- lake, biome, and start-suitability fields remain placeholders
 
 ## MapData
 

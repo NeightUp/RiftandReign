@@ -36,6 +36,12 @@ Current implementation note:
 - Outputs: drainage paths, river data, and lake flags where required
 - Purpose: route water downhill in a consistent way and create plausible river systems tied to terrain
 
+Current implementation note:
+
+- the repository now computes first-pass downhill outflow targets for land tiles
+- simple flow accumulation is used to mark sparse first-pass river tiles
+- basin filling, lake simulation, and refined hydrology behavior are intentionally deferred
+
 ## 5. Climate
 
 - Inputs: elevation, moisture-related data, temperature-related data, water proximity

@@ -32,3 +32,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Added an ASCII terrain preview and expanded the CLI summary with land and water counts, percentages, and retained scalar ranges.
 - Added focused pytest coverage for terrain determinism, land and water population, layout changes across seeds, metadata preservation, and ASCII preview shape.
 - Updated repository docs and step history for the new terrain-classification layer while keeping the Windows `.venv` plus `python` workflow intact.
+
+## Step 0005 - First-Pass Hydrology
+
+- Added deterministic downhill routing, flow accumulation, and sparse first-pass river marking for land tiles.
+- Updated the CLI to include river counts, maximum river strength, and river markers in the ASCII preview.
+- Corrected PowerShell activation examples to use `.\.venv\Scripts\Activate.ps1` in repository workflow docs.
+- Added focused pytest coverage for hydrology determinism, downhill routing, river placement constraints, and ASCII preview shape.
+- Updated repository tracking and navigation docs for the new hydrology layer.

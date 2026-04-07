@@ -7,7 +7,7 @@ This project is developed on Windows using the repository-local virtual environm
 From the repository root:
 
 ```powershell
-.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 ```
 
 Use `python` after activation. Do not use `py -3.11` in normal project commands.
