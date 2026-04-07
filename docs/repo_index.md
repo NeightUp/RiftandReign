@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, and tested hex-grid math. The actual terrain-generation pipeline is documented but not yet implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, and tested hex-grid math. The actual terrain-generation pipeline is documented but not yet implemented.
 
 ## Recommended Reading Order
 
@@ -17,6 +17,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 7. `docs/acceptance_tests.md`
 8. `CHANGELOG.md`
 9. `docs/changes/0001_initial_scaffold.md`
+10. `docs/changes/0002_board_foundation.md`
 
 ## Current Top-Level Structure
 
@@ -36,16 +37,19 @@ RiftandReign/
 |   +-- project_scope.md
 |   +-- repo_index.md
 |   `-- changes/
-|       `-- 0001_initial_scaffold.md
+|       +-- 0001_initial_scaffold.md
+|       `-- 0002_board_foundation.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
 |       +-- __init__.py
 |       +-- __main__.py
+|       +-- board.py
 |       +-- hex.py
 |       +-- main.py
 |       `-- types.py
 `-- tests/
+    +-- test_board.py
     `-- test_hex.py
 ```
 
@@ -71,16 +75,22 @@ RiftandReign/
   Purpose: authoritative navigation file for reviewers and maintainers.
 - `docs/changes/0001_initial_scaffold.md`
   Purpose: detailed historical record for the initial scaffold step.
+- `docs/changes/0002_board_foundation.md`
+  Purpose: detailed historical record for the deterministic board foundation step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
   Purpose: module execution support for `python -m rnr_mapgen`.
+- `src/rnr_mapgen/board.py`
+  Purpose: deterministic finite board construction and compact map-summary helpers.
 - `src/rnr_mapgen/main.py`
-  Purpose: current executable entry point for the scaffold package.
+  Purpose: executable entry point that builds an empty board and prints a concise debug summary.
 - `src/rnr_mapgen/hex.py`
   Purpose: pointy-top axial and cube hex coordinate helpers used by future generator logic.
 - `src/rnr_mapgen/types.py`
-  Purpose: lightweight dataclasses for config and map-level tile data.
+  Purpose: lightweight dataclasses for generator config and map-level tile data.
+- `tests/test_board.py`
+  Purpose: focused pytest coverage for deterministic board construction and metadata preservation.
 - `tests/test_hex.py`
   Purpose: focused pytest coverage for the hex-grid utilities.
 - `assets/`
@@ -95,7 +105,8 @@ RiftandReign/
 ## Test Locations
 
 - Automated tests live in `tests/`
-- Current test file: `tests/test_hex.py`
+- Board tests: `tests/test_board.py`
+- Hex tests: `tests/test_hex.py`
 
 ## Documentation Locations
 
@@ -127,9 +138,11 @@ Implemented now:
 
 - packaging and executable scaffold
 - pointy-top hex coordinate math
+- finite non-wrapping board creation
 - lightweight map-related dataclasses
+- debug-oriented CLI board summary
 - repository documentation and project tracking
-- focused unit tests for hex utilities
+- focused unit tests for hex utilities and board construction
 
 Not implemented yet:
 

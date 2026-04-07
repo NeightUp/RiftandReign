@@ -15,6 +15,13 @@ class GeneratorConfig:
     height: int
     seed: int
 
+    def __post_init__(self) -> None:
+        """Validate dimensions for the finite playable field."""
+        if self.width <= 0:
+            raise ValueError("width must be greater than zero")
+        if self.height <= 0:
+            raise ValueError("height must be greater than zero")
+
 
 @dataclass(slots=True)
 class TileData:
@@ -40,3 +47,12 @@ class MapData:
     seed: int
     config: GeneratorConfig
     tiles: dict[HexCoord, TileData] = field(default_factory=dict)
+
+    @property
+    def tile_count(self) -> int:
+        """Return the total number of tiles in the map."""
+        return len(self.tiles)
+
+    def contains(self, coord: HexCoord) -> bool:
+        """Return whether the coordinate is within the playable field."""
+        return coord in self.tiles

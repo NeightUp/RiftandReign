@@ -42,10 +42,16 @@ Some fields may remain placeholders until the corresponding pipeline stages are 
 
 `MapData` represents the generated map as a whole.
 
-- dimensions or generation bounds
+- width
+- height
 - seed used for generation
 - configuration used for generation
 - mapping from `HexCoord` to `TileData`
+
+For the current board-foundation step, `MapData` stores a finite non-wrapping rectangular playable field generated in row-major order with:
+
+- `q` spanning `0..width-1`
+- `r` spanning `0..height-1`
 
 This structure should support deterministic generation, inspection, and later debug output.
 
@@ -66,3 +72,5 @@ It may later expand with terrain-tuning values, but should remain explicit and s
 The repository uses pointy-top axial coordinates. Neighbor logic should therefore follow the standard six axial offsets for pointy-top hexes. Utilities should expose direct neighbor lookup and a way to list all six neighbors from a coordinate.
 
 Algorithm-facing helpers may convert to cube coordinates internally, but storage and public-facing interfaces remain axial.
+
+For the current finite board, neighbors outside the rectangular playable field are simply absent from `MapData.tiles`. There is no wraparound behavior.
