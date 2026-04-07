@@ -14,6 +14,11 @@ The generator is planned as a deterministic layered pipeline rather than a singl
 - Outputs: scalar fields such as continentality, roughness, moisture tendency, and temperature tendency
 - Purpose: create the continuous underlying signals from which terrain and climate can later be derived
 
+Current implementation note:
+
+- the repository now assigns deterministic normalized scalar values for elevation, moisture, and temperature to every tile
+- these are groundwork fields only and are not yet land or water decisions, hydrology, climate zoning, or biome classification
+
 ## 3. Landmask And Elevation
 
 - Inputs: base scalar fields, configuration thresholds

@@ -12,6 +12,11 @@ These are project-level acceptance criteria for the eventual generator. They are
 - Hex neighbor calculations are correct for pointy-top axial coordinates.
 - Distance calculations are symmetric and return zero for a tile compared with itself.
 
+## Scalar Fields
+
+- Every generated tile receives deterministic elevation, moisture, and temperature scalar values.
+- Scalar values remain within the expected normalized range used by later pipeline stages.
+
 ## Hydrology
 
 - No river path moves uphill.

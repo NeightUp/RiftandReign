@@ -24,20 +24,3 @@ def create_empty_map(config: GeneratorConfig) -> MapData:
         config=config,
         tiles=tiles,
     )
-
-
-def format_map_summary(map_data: MapData, sample_size: int = 6) -> str:
-    """Return a concise debug-oriented summary for command-line output."""
-    sample_coords = ", ".join(
-        f"({coord.q},{coord.r})"
-        for coord in list(map_data.tiles.keys())[:sample_size]
-    )
-    return "\n".join(
-        [
-            "RiftandReign board foundation only.",
-            f"Dimensions: {map_data.width}x{map_data.height}",
-            f"Seed: {map_data.seed}",
-            f"Total tiles: {map_data.tile_count}",
-            f"Sample coords: {sample_coords}",
-        ]
-    )

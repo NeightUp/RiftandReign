@@ -17,3 +17,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Updated the CLI to build an empty map and print a concise debug-oriented board summary.
 - Added focused pytest coverage for board construction behavior and determinism.
 - Updated repository tracking and navigation docs for the new board layer.
+
+## Step 0003 - Scalar Fields
+
+- Added deterministic scalar-field generation for elevation, moisture, and temperature on every tile.
+- Updated the CLI to build the board, apply scalar fields, and print concise range and sample-value summaries.
+- Added Windows-focused local development workflow documentation using the repository virtual environment and `python` commands.
+- Added focused pytest coverage for scalar-field determinism, range guarantees, and metadata preservation.
+- Updated repository tracking and navigation docs for the new workflow and scalar-field layer.

@@ -38,6 +38,13 @@ Expected fields are intentionally minimal for now:
 
 Some fields may remain placeholders until the corresponding pipeline stages are implemented.
 
+For the current scalar-field step:
+
+- `elevation` is a normalized scalar field, not final terrain classification
+- `moisture` is a normalized scalar field, not a biome result
+- `temperature` is a normalized scalar field, not a climate-zone label
+- water, river, lake, biome, and start-suitability fields remain placeholders
+
 ## MapData
 
 `MapData` represents the generated map as a whole.
