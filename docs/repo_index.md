@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, and tested hex-grid math. Terrain classification and later pipeline stages are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, and tested hex-grid math. Rivers, hydrology, and later pipeline stages are still not implemented.
 
 ## Recommended Reading Order
 
@@ -20,6 +20,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 10. `docs/changes/0001_initial_scaffold.md`
 11. `docs/changes/0002_board_foundation.md`
 12. `docs/changes/0003_scalar_fields.md`
+13. `docs/changes/0004_land_water_classification.md`
 
 ## Current Top-Level Structure
 
@@ -42,7 +43,8 @@ RiftandReign/
 |   `-- changes/
 |       +-- 0001_initial_scaffold.md
 |       +-- 0002_board_foundation.md
-|       `-- 0003_scalar_fields.md
+|       +-- 0003_scalar_fields.md
+|       `-- 0004_land_water_classification.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
@@ -52,10 +54,12 @@ RiftandReign/
 |       +-- fields.py
 |       +-- hex.py
 |       +-- main.py
+|       +-- terrain.py
 |       `-- types.py
 `-- tests/
     +-- test_board.py
     +-- test_fields.py
+    +-- test_terrain.py
     `-- test_hex.py
 ```
 
@@ -87,6 +91,8 @@ RiftandReign/
   Purpose: detailed historical record for the deterministic board foundation step.
 - `docs/changes/0003_scalar_fields.md`
   Purpose: detailed historical record for the scalar-field groundwork and workflow documentation step.
+- `docs/changes/0004_land_water_classification.md`
+  Purpose: detailed historical record for the first-pass land and water classification step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
@@ -94,9 +100,11 @@ RiftandReign/
 - `src/rnr_mapgen/board.py`
   Purpose: deterministic finite board construction.
 - `src/rnr_mapgen/fields.py`
-  Purpose: deterministic scalar-field generation and concise scalar summary formatting for CLI output.
+  Purpose: deterministic scalar-field generation for elevation, moisture, and temperature.
 - `src/rnr_mapgen/main.py`
-  Purpose: executable entry point that builds the board, applies scalar fields, and prints a concise debug summary.
+  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, and prints a concise debug summary.
+- `src/rnr_mapgen/terrain.py`
+  Purpose: deterministic first-pass land and water classification plus ASCII terrain preview helpers.
 - `src/rnr_mapgen/hex.py`
   Purpose: pointy-top axial and cube hex coordinate helpers used by future generator logic.
 - `src/rnr_mapgen/types.py`
@@ -105,6 +113,8 @@ RiftandReign/
   Purpose: focused pytest coverage for deterministic board construction and metadata preservation.
 - `tests/test_fields.py`
   Purpose: focused pytest coverage for scalar-field determinism, value ranges, and metadata preservation.
+- `tests/test_terrain.py`
+  Purpose: focused pytest coverage for terrain determinism, land and water layout, metadata preservation, and ASCII preview shape.
 - `tests/test_hex.py`
   Purpose: focused pytest coverage for the hex-grid utilities.
 - `assets/`
@@ -121,6 +131,7 @@ RiftandReign/
 - Automated tests live in `tests/`
 - Board tests: `tests/test_board.py`
 - Field tests: `tests/test_fields.py`
+- Terrain tests: `tests/test_terrain.py`
 - Hex tests: `tests/test_hex.py`
 
 ## Documentation Locations
@@ -156,17 +167,17 @@ Implemented now:
 - pointy-top hex coordinate math
 - finite non-wrapping board creation
 - deterministic scalar fields for elevation, moisture, and temperature
+- deterministic first-pass land and water classification
 - lightweight map-related dataclasses
-- debug-oriented CLI scalar-field summary
+- debug-oriented CLI terrain summary and ASCII preview
 - repository documentation and project tracking
-- focused unit tests for hex utilities, board construction, and scalar fields
+- focused unit tests for hex utilities, board construction, scalar fields, and terrain classification
 
 Not implemented yet:
 
-- terrain generation
-- land and water classification
 - hydrology
-- climate
+- rivers and lake-system simulation
+- climate zoning beyond scalar groundwork
 - biome classification
 - start-region validation logic
 - debug visualization output beyond documentation

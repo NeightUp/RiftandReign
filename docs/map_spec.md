@@ -36,6 +36,11 @@ The generator should eventually aim for:
 - useful buildable land for expansion
 - reasonable starting areas for later validation
 
+Current implementation note:
+
+- the repository now performs a first-pass deterministic land and water classification
+- this pass is intended to produce usable early coastlines and land patches, not final terrain quality
+
 ## Boundaries For This Repository
 
 This repository currently concerns only macro hex map generation. It does not define tactical combat grids, subhex terrain detail, or final art/rendering systems.

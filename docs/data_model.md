@@ -43,7 +43,12 @@ For the current scalar-field step:
 - `elevation` is a normalized scalar field, not final terrain classification
 - `moisture` is a normalized scalar field, not a biome result
 - `temperature` is a normalized scalar field, not a climate-zone label
-- water, river, lake, biome, and start-suitability fields remain placeholders
+
+For the current terrain-classification step:
+
+- `is_water` is populated by the first-pass terrain classifier
+- `elevation`, `moisture`, and `temperature` remain available for later systems
+- river, lake, biome, and start-suitability fields remain placeholders
 
 ## MapData
 

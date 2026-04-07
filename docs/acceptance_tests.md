@@ -17,6 +17,12 @@ These are project-level acceptance criteria for the eventual generator. They are
 - Every generated tile receives deterministic elevation, moisture, and temperature scalar values.
 - Scalar values remain within the expected normalized range used by later pipeline stages.
 
+## Land And Water Classification
+
+- Every generated tile receives a land or water classification.
+- The same seed and configuration produce the same terrain layout.
+- Terrain output should contain coherent land and water patches rather than isolated salt-and-pepper noise.
+
 ## Hydrology
 
 - No river path moves uphill.

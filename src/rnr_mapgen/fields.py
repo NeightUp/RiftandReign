@@ -30,48 +30,6 @@ def generate_scalar_fields(map_data: MapData) -> MapData:
     return map_data
 
 
-def summarize_scalar_fields(map_data: MapData, sample_size: int = 4) -> str:
-    """Return a compact CLI summary of scalar-field output."""
-    elevation_values = [tile.elevation for tile in map_data.tiles.values()]
-    moisture_values = [tile.moisture for tile in map_data.tiles.values()]
-    temperature_values = [tile.temperature for tile in map_data.tiles.values()]
-    sample_tiles = list(map_data.tiles.values())[:sample_size]
-
-    sample_lines = [
-        (
-            f"  ({tile.coord.q},{tile.coord.r}) "
-            f"e={tile.elevation:.3f} "
-            f"m={tile.moisture:.3f} "
-            f"t={tile.temperature:.3f}"
-        )
-        for tile in sample_tiles
-    ]
-
-    return "\n".join(
-        [
-            "RiftandReign scalar-field groundwork only.",
-            f"Dimensions: {map_data.width}x{map_data.height}",
-            f"Seed: {map_data.seed}",
-            f"Total tiles: {map_data.tile_count}",
-            (
-                "Elevation range: "
-                f"{min(elevation_values):.3f}..{max(elevation_values):.3f}"
-            ),
-            (
-                "Moisture range: "
-                f"{min(moisture_values):.3f}..{max(moisture_values):.3f}"
-            ),
-            (
-                "Temperature range: "
-                f"{min(temperature_values):.3f}..{max(temperature_values):.3f}"
-            ),
-            "Sample tiles:",
-            *sample_lines,
-            "Terrain classification, hydrology, and biomes are not implemented yet.",
-        ]
-    )
-
-
 def _build_raw_field(map_data: MapData, field_name: FieldName) -> dict[HexCoord, float]:
     """Build the initial unsmoothed scalar field for one channel."""
     values: dict[HexCoord, float] = {}
@@ -84,25 +42,21 @@ def _build_raw_field(map_data: MapData, field_name: FieldName) -> dict[HexCoord,
 
         if field_name == "elevation":
             ridge_noise = _hash_unit_interval(map_data.seed + 17, "ridge", coord)
-            raw_value = (
-                0.50 * base_noise
-                + 0.35 * center_bias
-                + 0.15 * ridge_noise
-            )
+            raw_value = (0.50 * base_noise) + (0.35 * center_bias) + (0.15 * ridge_noise)
         elif field_name == "moisture":
             north_south_band = 1.0 - abs((r_ratio * 2.0) - 1.0)
             raw_value = (
-                0.55 * base_noise
-                + 0.25 * north_south_band
-                + 0.20 * (1.0 - q_ratio)
+                (0.55 * base_noise)
+                + (0.25 * north_south_band)
+                + (0.20 * (1.0 - q_ratio))
             )
         else:
             north_warmth = 1.0 - r_ratio
             east_west_balance = 1.0 - abs((q_ratio * 2.0) - 1.0)
             raw_value = (
-                0.55 * north_warmth
-                + 0.20 * east_west_balance
-                + 0.25 * base_noise
+                (0.55 * north_warmth)
+                + (0.20 * east_west_balance)
+                + (0.25 * base_noise)
             )
 
         values[coord] = _clamp_unit(raw_value)

@@ -25,3 +25,10 @@ This file records the high-level history of meaningful repository changes. Detai
 - Added Windows-focused local development workflow documentation using the repository virtual environment and `python` commands.
 - Added focused pytest coverage for scalar-field determinism, range guarantees, and metadata preservation.
 - Updated repository tracking and navigation docs for the new workflow and scalar-field layer.
+
+## Step 0004 - Land And Water Classification
+
+- Added a deterministic first-pass terrain classifier that marks every tile as land or water using elevation-driven rules with light coherence cleanup.
+- Added an ASCII terrain preview and expanded the CLI summary with land and water counts, percentages, and retained scalar ranges.
+- Added focused pytest coverage for terrain determinism, land and water population, layout changes across seeds, metadata preservation, and ASCII preview shape.
+- Updated repository docs and step history for the new terrain-classification layer while keeping the Windows `.venv` plus `python` workflow intact.

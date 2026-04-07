@@ -25,6 +25,11 @@ Current implementation note:
 - Outputs: land or water classification and elevation values per hex
 - Purpose: form coastlines, landmasses, basins, and highlands that define the macro terrain layout
 
+Current implementation note:
+
+- the repository now performs a first-pass deterministic land and water classification from the scalar-field layer
+- the current classifier is intentionally simple and is meant as a foundation for later hydrology and biome work
+
 ## 4. Hydrology
 
 - Inputs: elevation, landmask, potential water flow rules
