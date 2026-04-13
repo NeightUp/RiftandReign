@@ -42,6 +42,14 @@ Console script entry:
 rnr-mapgen
 ```
 
+Windowed debug viewer:
+
+```powershell
+python -m rnr_mapgen --view
+```
+
+The viewer uses the same deterministic map pipeline as the text summary path and opens a desktop window for pointy-top hex inspection with panning and zoom.
+
 ## Python Version
 
 The project supports Python 3.11 and newer. The current local development workflow is working on Python 3.14.

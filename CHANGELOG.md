@@ -63,3 +63,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Routed terrain and hydrology threshold configuration through `GeneratorConfig`.
 - Added focused pytest coverage for CLI parsing, validation, larger-map stability, deterministic preview behavior, and full-pipeline config preservation.
 - Updated repository tracking and navigation docs for the new configurable map workflow.
+
+## Step 0009 - Windowed Map Viewer
+
+- Added an optional `--view` CLI mode that opens a lightweight pointy-top hex debug viewer for the same deterministic generated map used by the text summary path.
+- Added flat debug biome and water colors plus simple river overlays, panning, zoom, and compact hover inspection for map-focused visual debugging.
+- Kept the existing CLI generation pipeline and text summary behavior intact when `--view` is not used.
+- Added focused pytest coverage for `--view` parsing, viewer geometry helpers, and biome color mapping.
+- Updated repository docs and detailed step history for the new windowed debug-viewer layer.

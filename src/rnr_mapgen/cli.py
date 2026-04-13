@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 
-from rnr_mapgen.types import GeneratorConfig
+from rnr_mapgen.types import GeneratorConfig, ViewerConfig
 
 
 DEFAULT_WIDTH = 24
@@ -12,6 +13,14 @@ DEFAULT_HEIGHT = 16
 DEFAULT_SEED = 0
 DEFAULT_PREVIEW_WIDTH = 24
 DEFAULT_PREVIEW_HEIGHT = 12
+
+
+@dataclass(frozen=True, slots=True)
+class CliOptions:
+    """Parsed command-line options for generation and debug viewing."""
+
+    config: GeneratorConfig
+    viewer: ViewerConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,15 +58,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_PREVIEW_HEIGHT,
         help="Maximum ASCII preview height before deterministic clipping.",
     )
+    parser.add_argument(
+        "--view",
+        action="store_true",
+        help="Open a windowed debug viewer for the generated pointy-top hex map.",
+    )
     return parser
 
 
-def parse_args(argv: list[str] | None = None) -> GeneratorConfig:
-    """Parse CLI arguments into a validated generator configuration."""
+def parse_args(argv: list[str] | None = None) -> CliOptions:
+    """Parse CLI arguments into validated generation and viewer options."""
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return GeneratorConfig(
+        config = GeneratorConfig(
             width=args.width,
             height=args.height,
             seed=args.seed,
@@ -65,6 +79,10 @@ def parse_args(argv: list[str] | None = None) -> GeneratorConfig:
             river_source_threshold=args.river_source_threshold,
             preview_width=args.preview_width,
             preview_height=args.preview_height,
+        )
+        return CliOptions(
+            config=config,
+            viewer=ViewerConfig(enabled=args.view),
         )
     except ValueError as exc:
         parser.error(str(exc))

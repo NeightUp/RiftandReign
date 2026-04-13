@@ -81,6 +81,11 @@ Current implementation note:
 - Outputs: debug-friendly summaries or visualizations of the generated layers
 - Purpose: make it possible to inspect failures, tune parameters, and audit deterministic behavior
 
+Current implementation note:
+
+- the repository now supports two debug-output paths from the same deterministic pipeline: the existing text summary plus ASCII preview, and an optional windowed viewer launched with `--view`
+- the windowed viewer renders pointy-top hexes with flat biome and water colors, simple river overlays, panning, zoom, and a compact hover readout
+
 ## Why Build In Layers
 
 Layering keeps the generator understandable and testable. Each stage can be validated independently, failures can be traced to a specific layer, and deterministic debugging becomes much easier than with one giant generator that mixes terrain, rivers, climate, and validation in a single pass.

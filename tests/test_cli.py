@@ -21,11 +21,13 @@ def _build_full_map(config: GeneratorConfig):
 
 
 def test_parse_args_reads_width_height_and_seed() -> None:
-    config = parse_args(["--width", "24", "--height", "16", "--seed", "5"])
+    options = parse_args(["--width", "24", "--height", "16", "--seed", "5"])
+    config = options.config
 
     assert config.width == 24
     assert config.height == 16
     assert config.seed == 5
+    assert options.viewer.enabled is False
 
 
 def test_invalid_dimensions_are_rejected_cleanly() -> None:
@@ -34,17 +36,25 @@ def test_invalid_dimensions_are_rejected_cleanly() -> None:
 
 
 def test_default_cli_config_is_stable() -> None:
-    config = parse_args([])
+    options = parse_args([])
+    config = options.config
 
     assert config.width == 24
     assert config.height == 16
     assert config.seed == 0
     assert config.preview_width == 24
     assert config.preview_height == 12
+    assert options.viewer.enabled is False
+
+
+def test_view_flag_enables_windowed_debug_view() -> None:
+    options = parse_args(["--view"])
+
+    assert options.viewer.enabled is True
 
 
 def test_explicit_config_produces_deterministic_results() -> None:
-    config = parse_args(["--width", "24", "--height", "16", "--seed", "7"])
+    config = parse_args(["--width", "24", "--height", "16", "--seed", "7"]).config
 
     first = _build_full_map(config)
     second = _build_full_map(config)
@@ -53,7 +63,7 @@ def test_explicit_config_produces_deterministic_results() -> None:
 
 
 def test_larger_map_config_preserves_pipeline_without_crashing() -> None:
-    config = parse_args(["--width", "32", "--height", "20", "--seed", "11"])
+    config = parse_args(["--width", "32", "--height", "20", "--seed", "11"]).config
 
     map_data = _build_full_map(config)
 
@@ -76,7 +86,7 @@ def test_preview_output_is_non_empty_and_deterministic_for_large_map() -> None:
             "--preview-height",
             "8",
         ]
-    )
+    ).config
 
     first = summarize_starts(_build_full_map(config))
     second = summarize_starts(_build_full_map(config))
@@ -89,7 +99,7 @@ def test_preview_output_is_non_empty_and_deterministic_for_large_map() -> None:
 def test_full_pipeline_preserves_config_through_larger_map() -> None:
     config = parse_args(
         ["--width", "28", "--height", "18", "--seed", "9", "--sea-level", "0.41"]
-    )
+    ).config
 
     map_data = _build_full_map(config)
 

@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a lightweight windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
 
 ## Recommended Reading Order
 
@@ -25,6 +25,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 15. `docs/changes/0006_first_pass_biomes.md`
 16. `docs/changes/0007_start_suitability.md`
 17. `docs/changes/0008_cli_config_and_larger_maps.md`
+18. `docs/changes/0009_windowed_map_viewer.md`
 
 ## Current Top-Level Structure
 
@@ -60,6 +61,7 @@ RiftandReign/
 |       +-- __main__.py
 |       +-- board.py
 |       +-- biomes.py
+|       +-- colors.py
 |       +-- fields.py
 |       +-- hydrology.py
 |       +-- hex.py
@@ -67,16 +69,19 @@ RiftandReign/
 |       +-- main.py
 |       +-- starts.py
 |       +-- terrain.py
-|       `-- types.py
+|       +-- types.py
+|       `-- viewer.py
 `-- tests/
     +-- test_board.py
     +-- test_biomes.py
     +-- test_fields.py
     +-- test_hydrology.py
     +-- test_cli.py
+    +-- test_colors.py
     +-- test_starts.py
     +-- test_terrain.py
-    `-- test_hex.py
+    +-- test_hex.py
+    `-- test_viewer.py
 ```
 
 ## Important Files And Paths
@@ -117,6 +122,8 @@ RiftandReign/
   Purpose: detailed historical record for the first-pass start suitability scoring step.
 - `docs/changes/0008_cli_config_and_larger_maps.md`
   Purpose: detailed historical record for the configurable CLI and larger-map workflow step.
+- `docs/changes/0009_windowed_map_viewer.md`
+  Purpose: detailed historical record for the windowed debug-viewer step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
@@ -126,13 +133,15 @@ RiftandReign/
 - `src/rnr_mapgen/biomes.py`
   Purpose: deterministic first-pass land-biome classification and biome-aware ASCII preview helpers.
 - `src/rnr_mapgen/cli.py`
-  Purpose: standard-library CLI parsing for map-focused configuration and preview controls.
+  Purpose: standard-library CLI parsing for map-focused configuration, preview controls, and optional windowed debug-viewer launch.
+- `src/rnr_mapgen/colors.py`
+  Purpose: flat debug color mapping for water, first-pass land biomes, and viewer UI accents.
 - `src/rnr_mapgen/fields.py`
   Purpose: deterministic scalar-field generation for elevation, moisture, and temperature.
 - `src/rnr_mapgen/hydrology.py`
   Purpose: deterministic downhill routing, flow accumulation, river marking, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
-  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, assigns first-pass biomes, scores start suitability, and prints a concise debug summary.
+  Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, assigns first-pass biomes, scores start suitability, and either prints a concise debug summary or launches the windowed viewer.
 - `src/rnr_mapgen/starts.py`
   Purpose: deterministic start suitability scoring and top-candidate selection helpers.
 - `src/rnr_mapgen/terrain.py`
@@ -140,13 +149,17 @@ RiftandReign/
 - `src/rnr_mapgen/hex.py`
   Purpose: pointy-top axial and cube hex coordinate helpers used by future generator logic.
 - `src/rnr_mapgen/types.py`
-  Purpose: lightweight dataclasses for generator config and map-level tile data.
+  Purpose: lightweight dataclasses for generator config, map-level tile data, and viewer launch state.
+- `src/rnr_mapgen/viewer.py`
+  Purpose: compact pointy-top hex debug viewer with panning, zoom, hover inspection, and simple river overlays.
 - `tests/test_board.py`
   Purpose: focused pytest coverage for deterministic board construction and metadata preservation.
 - `tests/test_biomes.py`
   Purpose: focused pytest coverage for biome determinism, land coverage, metadata preservation, biome diversity, and ASCII preview shape.
 - `tests/test_cli.py`
-  Purpose: focused pytest coverage for CLI parsing, config validation, larger-map stability, and deterministic preview behavior.
+  Purpose: focused pytest coverage for CLI parsing, config validation, optional viewer launch flag, larger-map stability, and deterministic preview behavior.
+- `tests/test_colors.py`
+  Purpose: focused pytest coverage for flat debug biome and water color mapping.
 - `tests/test_fields.py`
   Purpose: focused pytest coverage for scalar-field determinism, value ranges, and metadata preservation.
 - `tests/test_hydrology.py`
@@ -157,6 +170,8 @@ RiftandReign/
   Purpose: focused pytest coverage for terrain determinism, land and water layout, metadata preservation, and ASCII preview shape.
 - `tests/test_hex.py`
   Purpose: focused pytest coverage for the hex-grid utilities.
+- `tests/test_viewer.py`
+  Purpose: focused pytest coverage for pointy-top viewer geometry, coordinate conversion, and map-bounds helpers.
 - `assets/`
   Purpose: pre-existing repository art assets. These are present in the repository tree but are not part of this scaffold implementation step.
 
@@ -216,10 +231,11 @@ Implemented now:
 - deterministic first-pass land-biome classification
 - deterministic first-pass start suitability scoring
 - configurable CLI-driven map generation for larger deterministic maps
+- lightweight windowed debug viewing of the current generated map
 - lightweight map-related dataclasses
 - debug-oriented CLI terrain, river, biome, and start summary with ASCII preview
 - repository documentation and project tracking
-- focused unit tests for hex utilities, board construction, scalar fields, terrain classification, hydrology, biomes, start suitability, and CLI config
+- focused unit tests for hex utilities, board construction, scalar fields, terrain classification, hydrology, biomes, start suitability, CLI config, viewer geometry, and debug color mapping
 
 Not implemented yet:
 
@@ -231,7 +247,7 @@ Not implemented yet:
 - climate zoning beyond scalar groundwork
 - final multi-player start placement
 - start-region validation logic
-- debug visualization output beyond documentation
+- polished visualization beyond the current debug viewer
 
 ## Maintenance Rules
 

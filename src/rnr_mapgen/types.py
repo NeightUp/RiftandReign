@@ -72,3 +72,10 @@ class MapData:
     def contains(self, coord: HexCoord) -> bool:
         """Return whether the coordinate is within the playable field."""
         return coord in self.tiles
+
+
+@dataclass(frozen=True, slots=True)
+class ViewerConfig:
+    """Lightweight debug-viewer configuration."""
+
+    enabled: bool = False

@@ -43,9 +43,10 @@ Current implementation note:
 - the repository now also performs first-pass downhill routing and sparse river marking on land tiles
 - the repository now assigns first-pass land biome labels for readable world-layer output
 - the repository now assigns first-pass start suitability scores without placing players yet
+- the repository now includes a debug-only windowed viewer that renders the current generated map as pointy-top hexes with flat terrain colors and simple river overlays
 
 ## Boundaries For This Repository
 
 This repository currently concerns only macro hex map generation. It does not define tactical combat grids, subhex terrain detail, or final art/rendering systems.
 
-For current CLI-driven debugging, large maps may be previewed with a deterministic cropped ASCII view instead of printing the entire board.
+For current debugging, large maps may be previewed with a deterministic cropped ASCII view or opened in a lightweight windowed debug viewer. The viewer is intentionally flat-colored and map-focused rather than a final presentation layer.

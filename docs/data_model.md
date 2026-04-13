@@ -67,6 +67,8 @@ For the current start-suitability step:
 - `is_start_candidate` marks tiles that pass the first-pass suitability threshold
 - lake-related fields remain placeholders
 
+The current debug viewer reads existing tile state only. It does not add new gameplay data, and it renders directly from `coord`, `is_water`, `biome`, `river_flow_to`, `has_river`, `river_strength`, and `start_suitability`.
+
 ## MapData
 
 `MapData` represents the generated map as a whole.
@@ -102,6 +104,8 @@ The current implementation also uses a small set of practical CLI-facing map con
 - `preview_height`
 
 It may later expand with terrain-tuning values, but should remain explicit and serializable.
+
+Viewer launch state is intentionally not part of `GeneratorConfig` because it affects output mode rather than map generation.
 
 ## Neighbor Logic Expectations
 
