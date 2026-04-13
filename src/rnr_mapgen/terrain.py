@@ -88,7 +88,7 @@ def _is_land_candidate(map_data: MapData, coord: HexCoord) -> bool:
         + (MOISTURE_SUPPORT_WEIGHT * tile.moisture)
         + (TEMPERATURE_SUPPORT_WEIGHT * tile.temperature)
     )
-    return terrain_score >= SEA_LEVEL_THRESHOLD
+    return terrain_score >= map_data.config.sea_level_threshold
 
 
 def _cleanup_landmask(

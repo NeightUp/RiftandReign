@@ -47,3 +47,5 @@ Current implementation note:
 ## Boundaries For This Repository
 
 This repository currently concerns only macro hex map generation. It does not define tactical combat grids, subhex terrain detail, or final art/rendering systems.
+
+For current CLI-driven debugging, large maps may be previewed with a deterministic cropped ASCII view instead of printing the entire board.

@@ -94,6 +94,13 @@ At minimum it should describe:
 - map height
 - seed
 
+The current implementation also uses a small set of practical CLI-facing map controls:
+
+- `sea_level_threshold`
+- `river_source_threshold`
+- `preview_width`
+- `preview_height`
+
 It may later expand with terrain-tuning values, but should remain explicit and serializable.
 
 ## Neighbor Logic Expectations

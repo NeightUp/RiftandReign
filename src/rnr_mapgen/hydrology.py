@@ -5,8 +5,6 @@ from __future__ import annotations
 from rnr_mapgen.hex import HexCoord
 from rnr_mapgen.types import MapData
 
-
-RIVER_SOURCE_THRESHOLD = 3.0
 RIVER_STRENGTH_SCALE = 4.0
 
 
@@ -145,7 +143,7 @@ def _mark_rivers(map_data: MapData) -> None:
         if tile.is_water:
             continue
 
-        if tile.flow_accumulation < RIVER_SOURCE_THRESHOLD:
+        if tile.flow_accumulation < map_data.config.river_source_threshold:
             continue
 
         tile.has_river = True

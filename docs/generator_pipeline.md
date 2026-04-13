@@ -19,6 +19,11 @@ Current implementation note:
 - the repository now assigns deterministic normalized scalar values for elevation, moisture, and temperature to every tile
 - these are groundwork fields only and are not yet land or water decisions, hydrology, climate zoning, or biome classification
 
+Current configuration note:
+
+- the CLI now exposes explicit width, height, seed, sea level, river source threshold, and preview-size arguments
+- the same CLI arguments produce the same generated map summary and preview
+
 ## 3. Landmask And Elevation
 
 - Inputs: base scalar fields, configuration thresholds

@@ -14,6 +14,10 @@ class GeneratorConfig:
     width: int
     height: int
     seed: int
+    sea_level_threshold: float = 0.39
+    river_source_threshold: float = 3.0
+    preview_width: int = 24
+    preview_height: int = 12
 
     def __post_init__(self) -> None:
         """Validate dimensions for the finite playable field."""
@@ -21,6 +25,14 @@ class GeneratorConfig:
             raise ValueError("width must be greater than zero")
         if self.height <= 0:
             raise ValueError("height must be greater than zero")
+        if not 0.0 <= self.sea_level_threshold <= 1.0:
+            raise ValueError("sea_level_threshold must be between 0.0 and 1.0")
+        if self.river_source_threshold <= 0.0:
+            raise ValueError("river_source_threshold must be greater than zero")
+        if self.preview_width <= 0:
+            raise ValueError("preview_width must be greater than zero")
+        if self.preview_height <= 0:
+            raise ValueError("preview_height must be greater than zero")
 
 
 @dataclass(slots=True)

@@ -40,11 +40,13 @@ def classify_biomes(map_data: MapData) -> MapData:
 
 def render_ascii_biomes(map_data: MapData) -> str:
     """Render a compact ASCII preview of land, rivers, and biome families."""
+    preview_width = min(map_data.width, map_data.config.preview_width)
+    preview_height = min(map_data.height, map_data.config.preview_height)
     lines: list[str] = []
 
-    for r in range(map_data.height):
+    for r in range(preview_height):
         chars: list[str] = []
-        for q in range(map_data.width):
+        for q in range(preview_width):
             tile = map_data.tiles[HexCoord(q=q, r=r)]
             if tile.is_water:
                 chars.append(".")
@@ -100,6 +102,10 @@ def summarize_biomes(map_data: MapData) -> str:
             ),
             "Biome counts:",
             *biome_lines,
+            (
+                "ASCII preview policy: top-left crop "
+                f"up to {map_data.config.preview_width}x{map_data.config.preview_height}."
+            ),
             "ASCII biome preview (. water, ~ river, p plains, f forest, d desert, t tundra, h hills, m mountains):",
             render_ascii_biomes(map_data),
             "Start validation is not implemented yet.",

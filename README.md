@@ -1,6 +1,6 @@
 # RiftandReign Map Generator
 
-This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, first-pass land and water classification, first-pass hydrology groundwork, first-pass biome classification, and first-pass start suitability scoring.
+This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, first-pass land and water classification, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, and configurable CLI-driven map generation.
 
 The repository is focused on the map generator only. The intended long-term pipeline is:
 
@@ -26,6 +26,7 @@ In scope right now:
 - deterministic first-pass hydrology and river marking
 - deterministic first-pass biome classification
 - deterministic first-pass start suitability scoring
+- configurable CLI-driven map generation for larger maps and seed testing
 - debug-oriented CLI terrain, river, biome, and start summary with ASCII preview
 - documentation for scope, map spec, pipeline, and data model
 - project tracking via changelog and detailed change notes
@@ -51,6 +52,8 @@ python -m pip install -e .[dev]
 python -m pytest
 python -m rnr_mapgen
 rnr-mapgen
+python -m rnr_mapgen --width 24 --height 16 --seed 5
+rnr-mapgen --width 40 --height 24 --seed 123 --preview-width 24 --preview-height 12
 ```
 
 ## Documentation
@@ -59,4 +62,4 @@ Start with [docs/repo_index.md](docs/repo_index.md). It is the authoritative nav
 
 ## Current Status
 
-The CLI now builds a deterministic board, applies normalized scalar fields, classifies land and water, generates first-pass hydrology, classifies first-pass biomes, scores start suitability, and prints a concise summary with top start candidates and an ASCII preview. Final multi-player start placement and start validation are still intentionally deferred.
+The CLI now accepts explicit map configuration for width, height, seed, sea level, river source threshold, and ASCII preview size. Larger maps use a deterministic top-left preview crop so terminal output remains readable. Final multi-player start placement and start validation are still intentionally deferred.

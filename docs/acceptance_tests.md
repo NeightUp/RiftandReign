@@ -47,4 +47,5 @@ These are project-level acceptance criteria for the eventual generator. They are
 ## Runtime Stability
 
 - The generator runs without crashes for supported configuration ranges.
+- Larger CLI-configured maps remain deterministic and produce stable summary output.
 - Debug-oriented outputs can be produced for inspection when validation fails.

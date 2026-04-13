@@ -55,3 +55,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Updated the CLI to include start-eligible counts and top start candidate summaries alongside the existing biome preview.
 - Added focused pytest coverage for start scoring determinism, candidate filtering, ordering stability, and data preservation.
 - Updated repository tracking and navigation docs for the new start-suitability layer.
+
+## Step 0008 - CLI Config And Larger Maps
+
+- Added standard-library CLI argument parsing for width, height, seed, sea level, river source threshold, and ASCII preview limits.
+- Increased the default CLI map size to a more useful testing baseline while keeping output manageable through deterministic preview clipping.
+- Routed terrain and hydrology threshold configuration through `GeneratorConfig`.
+- Added focused pytest coverage for CLI parsing, validation, larger-map stability, deterministic preview behavior, and full-pipeline config preservation.
+- Updated repository tracking and navigation docs for the new configurable map workflow.

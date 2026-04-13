@@ -95,6 +95,10 @@ def summarize_starts(map_data: MapData) -> str:
             f"Start-eligible tiles: {start_eligible_tiles}",
             "Top start candidates:",
             *candidate_lines,
+            (
+                "ASCII preview policy: top-left crop "
+                f"up to {map_data.config.preview_width}x{map_data.config.preview_height}."
+            ),
             "ASCII biome preview (. water, ~ river, p plains, f forest, d desert, t tundra, h hills, m mountains):",
             render_ascii_biomes(map_data),
             "Final multi-player start placement is not implemented yet.",
