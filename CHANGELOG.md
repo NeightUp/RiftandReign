@@ -71,3 +71,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Kept the existing CLI generation pipeline and text summary behavior intact when `--view` is not used.
 - Added focused pytest coverage for `--view` parsing, viewer geometry helpers, and biome color mapping.
 - Updated repository docs and detailed step history for the new windowed debug-viewer layer.
+
+## Step 0010 - Rectangular World And Continent Overhaul
+
+- Added a rectangular odd-row staggered display layout so the viewer and user-facing map dimensions read as a world strip instead of a slanted rhombus.
+- Reworked elevation shaping to use deterministic broad continent centers, low-frequency macro fields, ocean breaks, and mild ocean-edge pressure instead of a simple center-biased land blob.
+- Updated terrain cleanup to preserve coherent continents and oceans while removing tiny fragments, small inland ponds, and narrow low-elevation land bridges.
+- Kept the existing CLI, debug viewer, hydrology, biome, and start-suitability workflow intact while retuning them to consume the new world shape.
+- Added focused pytest coverage for layout round-tripping, viewer stagger behavior, practical land ratios, and multi-region large-map terrain behavior.

@@ -109,7 +109,8 @@ def test_top_candidates_are_stable_and_non_empty() -> None:
         top,
         key=lambda tile: (
             -(tile.start_suitability or float("-inf")),
+            tile.display_row,
+            tile.display_col,
             tile.coord.q,
-            tile.coord.r,
         ),
     )

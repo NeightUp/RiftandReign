@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer, deterministic scalar fields, a first-pass land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a lightweight windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer with a rectangular display layout, deterministic scalar fields, a continent-oriented land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a lightweight windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
 
 ## Recommended Reading Order
 
@@ -26,6 +26,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 16. `docs/changes/0007_start_suitability.md`
 17. `docs/changes/0008_cli_config_and_larger_maps.md`
 18. `docs/changes/0009_windowed_map_viewer.md`
+19. `docs/changes/0010_rectangular_world_and_continent_overhaul.md`
 
 ## Current Top-Level Structure
 
@@ -53,7 +54,9 @@ RiftandReign/
 |       +-- 0005_first_pass_hydrology.md
 |       +-- 0006_first_pass_biomes.md
 |       +-- 0007_start_suitability.md
-|       `-- 0008_cli_config_and_larger_maps.md
+|       +-- 0008_cli_config_and_larger_maps.md
+|       +-- 0009_windowed_map_viewer.md
+|       `-- 0010_rectangular_world_and_continent_overhaul.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
@@ -124,12 +127,14 @@ RiftandReign/
   Purpose: detailed historical record for the configurable CLI and larger-map workflow step.
 - `docs/changes/0009_windowed_map_viewer.md`
   Purpose: detailed historical record for the windowed debug-viewer step.
+- `docs/changes/0010_rectangular_world_and_continent_overhaul.md`
+  Purpose: detailed historical record for the rectangular-world layout and continent-generation overhaul step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
   Purpose: module execution support for `python -m rnr_mapgen`.
 - `src/rnr_mapgen/board.py`
-  Purpose: deterministic finite board construction.
+  Purpose: deterministic finite board construction plus rectangular odd-row display-layout helpers.
 - `src/rnr_mapgen/biomes.py`
   Purpose: deterministic first-pass land-biome classification and biome-aware ASCII preview helpers.
 - `src/rnr_mapgen/cli.py`
@@ -137,7 +142,7 @@ RiftandReign/
 - `src/rnr_mapgen/colors.py`
   Purpose: flat debug color mapping for water, first-pass land biomes, and viewer UI accents.
 - `src/rnr_mapgen/fields.py`
-  Purpose: deterministic scalar-field generation for elevation, moisture, and temperature.
+  Purpose: deterministic scalar-field generation for continent-shaped elevation, moisture, and latitude-aware temperature.
 - `src/rnr_mapgen/hydrology.py`
   Purpose: deterministic downhill routing, flow accumulation, river marking, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
@@ -145,13 +150,13 @@ RiftandReign/
 - `src/rnr_mapgen/starts.py`
   Purpose: deterministic start suitability scoring and top-candidate selection helpers.
 - `src/rnr_mapgen/terrain.py`
-  Purpose: deterministic first-pass land and water classification plus ASCII terrain preview helpers.
+  Purpose: deterministic continent-oriented land and water classification plus ASCII terrain preview helpers and landmask cleanup.
 - `src/rnr_mapgen/hex.py`
   Purpose: pointy-top axial and cube hex coordinate helpers used by future generator logic.
 - `src/rnr_mapgen/types.py`
   Purpose: lightweight dataclasses for generator config, map-level tile data, and viewer launch state.
 - `src/rnr_mapgen/viewer.py`
-  Purpose: compact pointy-top hex debug viewer with panning, zoom, hover inspection, and simple river overlays.
+  Purpose: compact rectangular-world pointy-top hex debug viewer with panning, zoom, hover inspection, and simple river overlays.
 - `tests/test_board.py`
   Purpose: focused pytest coverage for deterministic board construction and metadata preservation.
 - `tests/test_biomes.py`
@@ -187,11 +192,13 @@ RiftandReign/
 - Board tests: `tests/test_board.py`
 - Biome tests: `tests/test_biomes.py`
 - CLI tests: `tests/test_cli.py`
+- Color tests: `tests/test_colors.py`
 - Field tests: `tests/test_fields.py`
 - Hydrology tests: `tests/test_hydrology.py`
 - Start tests: `tests/test_starts.py`
 - Terrain tests: `tests/test_terrain.py`
 - Hex tests: `tests/test_hex.py`
+- Viewer tests: `tests/test_viewer.py`
 
 ## Documentation Locations
 
@@ -224,9 +231,9 @@ Implemented now:
 
 - packaging and executable scaffold
 - pointy-top hex coordinate math
-- finite non-wrapping board creation
-- deterministic scalar fields for elevation, moisture, and temperature
-- deterministic first-pass land and water classification
+- finite non-wrapping board creation with rectangular odd-row display layout
+- deterministic scalar fields for continent-shaped elevation, moisture, and latitude-aware temperature
+- deterministic continent-oriented land and water classification
 - deterministic first-pass downhill routing and sparse river marking
 - deterministic first-pass land-biome classification
 - deterministic first-pass start suitability scoring

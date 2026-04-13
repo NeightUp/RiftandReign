@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from rnr_mapgen.board import axial_to_display, display_to_axial
 from rnr_mapgen.colors import (
     BACKGROUND_COLOR,
     GRID_LINE_COLOR,
@@ -189,7 +190,7 @@ def format_hover_text(tile) -> str:
     river = "yes" if tile.has_river else "no"
     score = "n/a" if tile.start_suitability is None else f"{tile.start_suitability:.2f}"
     return (
-        f"q={tile.coord.q} r={tile.coord.r} biome={biome} elev={tile.elevation:.3f} "
+        f"col={tile.display_col} row={tile.display_row} biome={biome} elev={tile.elevation:.3f} "
         f"moist={tile.moisture:.3f} temp={tile.temperature:.3f} river={river} start={score}"
     )
 
@@ -213,8 +214,14 @@ def map_pixel_bounds(map_data: MapData, radius: float) -> tuple[float, float, fl
 
 def hex_to_world(coord: HexCoord, radius: float) -> tuple[float, float]:
     """Convert a pointy-top axial hex coordinate into world-space center pixels."""
-    x = radius * SQRT_3 * (coord.q + (coord.r / 2.0))
-    y = radius * 1.5 * coord.r
+    display_col, display_row = axial_to_display(coord)
+    return display_to_world(display_col, display_row, radius)
+
+
+def display_to_world(display_col: int, display_row: int, radius: float) -> tuple[float, float]:
+    """Convert a rectangular odd-row display position into world-space center pixels."""
+    x = radius * SQRT_3 * (display_col + (0.5 if display_row & 1 else 0.0))
+    y = radius * 1.5 * display_row
     return x, y
 
 
@@ -226,17 +233,31 @@ def screen_to_hex_coord(
     """Map a screen-space position back to a tile coordinate when one exists."""
     world_x = (screen_pos[0] - view_state.offset_x) / view_state.zoom
     world_y = (screen_pos[1] - view_state.offset_y) / view_state.zoom
-    guessed_coord = world_to_hex(world_x, world_y, DEFAULT_HEX_RADIUS)
-    if map_data.contains(guessed_coord):
-        return guessed_coord
-    return None
+    return world_to_hex(map_data, world_x, world_y, DEFAULT_HEX_RADIUS)
 
 
-def world_to_hex(x: float, y: float, radius: float) -> HexCoord:
-    """Convert world-space center pixels into the nearest pointy-top axial hex."""
-    q = ((SQRT_3 / 3.0) * x - (1.0 / 3.0) * y) / radius
-    r = ((2.0 / 3.0) * y) / radius
-    return axial_round(q, r)
+def world_to_hex(map_data: MapData, x: float, y: float, radius: float) -> HexCoord | None:
+    """Convert world-space pixels into the nearest tile using display-row candidates."""
+    row_float = y / (radius * 1.5)
+    candidate_coords: list[HexCoord] = []
+
+    for display_row in range(math.floor(row_float) - 1, math.floor(row_float) + 3):
+        if display_row < 0 or display_row >= map_data.height:
+            continue
+
+        col_float = (x / (radius * SQRT_3)) - (0.5 if display_row & 1 else 0.0)
+        for display_col in range(math.floor(col_float) - 1, math.floor(col_float) + 3):
+            if display_col < 0 or display_col >= map_data.width:
+                continue
+            candidate_coords.append(display_to_axial(display_col, display_row))
+
+    if not candidate_coords:
+        return None
+
+    return min(
+        candidate_coords,
+        key=lambda coord: _distance_squared((x, y), hex_to_world(coord, radius)),
+    )
 
 
 def axial_round(q: float, r: float) -> HexCoord:
@@ -261,6 +282,13 @@ def axial_round(q: float, r: float) -> HexCoord:
         rounded_z = -rounded_x - rounded_y
 
     return HexCoord(q=int(rounded_x), r=int(rounded_z))
+
+
+def _distance_squared(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Return squared Euclidean distance between two points."""
+    dx = a[0] - b[0]
+    dy = a[1] - b[1]
+    return (dx * dx) + (dy * dy)
 
 
 def hex_polygon_points(center_x: float, center_y: float, radius: float) -> list[tuple[int, int]]:

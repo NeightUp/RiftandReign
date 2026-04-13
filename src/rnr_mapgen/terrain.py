@@ -1,23 +1,28 @@
-"""Deterministic first-pass terrain classification for the map foundation."""
+"""Deterministic continent-oriented land and water classification."""
 
 from __future__ import annotations
 
-from rnr_mapgen.board import iter_board_coords
+from collections import deque
+
+from rnr_mapgen.board import display_to_axial, iter_board_coords
 from rnr_mapgen.hex import HexCoord
 from rnr_mapgen.types import MapData
 
 
 SEA_LEVEL_THRESHOLD = 0.39
-EDGE_WATER_WEIGHT = 0.09
-MOISTURE_SUPPORT_WEIGHT = 0.03
-TEMPERATURE_SUPPORT_WEIGHT = 0.01
-LAND_JOIN_SCORE = 0.37
+NEIGHBOR_ELEVATION_WEIGHT = 0.24
+COASTAL_VARIATION_WEIGHT = 0.04
 ISOLATED_LAND_MAX_NEIGHBORS = 1
 COHERENT_WATER_TO_LAND_NEIGHBORS = 5
+LAND_JOIN_SCORE = 0.44
+NARROW_LAND_MAX_NEIGHBORS = 2
+NARROW_LAND_MAX_ELEVATION = 0.50
+MIN_LAND_REGION_SIZE = 6
+MIN_INLAND_WATER_REGION_SIZE = 4
 
 
 def classify_terrain(map_data: MapData) -> MapData:
-    """Classify every tile as land or water using deterministic first-pass rules."""
+    """Classify every tile as land or water using broad continent-friendly rules."""
     initial_land = {
         coord: _is_land_candidate(map_data, coord) for coord in map_data.tiles
     }
@@ -33,12 +38,14 @@ def render_ascii_terrain(map_data: MapData) -> str:
     """Render a compact ASCII preview using `#` for land and `.` for water."""
     lines: list[str] = []
 
-    for r in range(map_data.height):
+    for display_row in range(map_data.height):
         chars = [
-            "#" if not map_data.tiles[HexCoord(q=q, r=r)].is_water else "."
-            for q in range(map_data.width)
+            "#"
+            if not map_data.tiles[display_to_axial(display_col, display_row)].is_water
+            else "."
+            for display_col in range(map_data.width)
         ]
-        indent = " " if r % 2 else ""
+        indent = " " if display_row % 2 else ""
         lines.append(f"{indent}{''.join(chars)}")
 
     return "\n".join(lines)
@@ -78,15 +85,20 @@ def summarize_terrain(map_data: MapData) -> str:
 def _is_land_candidate(map_data: MapData, coord: HexCoord) -> bool:
     """Return the initial land or water decision for one tile."""
     tile = map_data.tiles[coord]
-    q_ratio = _axis_ratio(coord.q, map_data.width)
-    r_ratio = _axis_ratio(coord.r, map_data.height)
-    edge_bias = max(abs((q_ratio * 2.0) - 1.0), abs((r_ratio * 2.0) - 1.0))
-
+    neighbor_elevations = [
+        map_data.tiles[neighbor].elevation
+        for neighbor in coord.list_neighbors()
+        if neighbor in map_data.tiles
+    ]
+    neighbor_average = (
+        sum(neighbor_elevations) / len(neighbor_elevations)
+        if neighbor_elevations
+        else tile.elevation
+    )
     terrain_score = (
         tile.elevation
-        - (EDGE_WATER_WEIGHT * edge_bias)
-        + (MOISTURE_SUPPORT_WEIGHT * tile.moisture)
-        + (TEMPERATURE_SUPPORT_WEIGHT * tile.temperature)
+        + (NEIGHBOR_ELEVATION_WEIGHT * neighbor_average)
+        + (COASTAL_VARIATION_WEIGHT * (tile.moisture - 0.5))
     )
     return terrain_score >= map_data.config.sea_level_threshold
 
@@ -94,7 +106,7 @@ def _is_land_candidate(map_data: MapData, coord: HexCoord) -> bool:
 def _cleanup_landmask(
     map_data: MapData, initial_land: dict[HexCoord, bool]
 ) -> dict[HexCoord, bool]:
-    """Apply a light coherence pass to reduce single-tile terrain noise."""
+    """Apply coherence cleanup to reduce speckle and tiny trapped regions."""
     cleaned = dict(initial_land)
 
     for coord in iter_board_coords(map_data.width, map_data.height):
@@ -114,11 +126,94 @@ def _cleanup_landmask(
         ):
             cleaned[coord] = True
 
+    _remove_small_land_regions(map_data, cleaned)
+    _break_narrow_land_bridges(map_data, cleaned)
+    _fill_small_inland_water_regions(map_data, cleaned)
     return cleaned
 
 
-def _axis_ratio(index: int, size: int) -> float:
-    """Convert a board index into a stable 0.0..1.0 ratio."""
-    if size <= 1:
-        return 0.5
-    return index / (size - 1)
+def _remove_small_land_regions(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
+    """Convert tiny detached land fragments into water."""
+    for region in _collect_regions(map_data, landmask, target_is_land=True):
+        if len(region) >= MIN_LAND_REGION_SIZE:
+            continue
+        for coord in region:
+            landmask[coord] = False
+
+
+def _fill_small_inland_water_regions(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
+    """Convert tiny fully enclosed water pockets into land."""
+    for region in _collect_regions(map_data, landmask, target_is_land=False):
+        if len(region) >= MIN_INLAND_WATER_REGION_SIZE:
+            continue
+        if any(_touches_display_edge(map_data, coord) for coord in region):
+            continue
+        for coord in region:
+            landmask[coord] = True
+
+
+def _break_narrow_land_bridges(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
+    """Remove low-elevation one- and two-hex land connectors between larger masses."""
+    to_water: list[HexCoord] = []
+
+    for coord in iter_board_coords(map_data.width, map_data.height):
+        if not landmask[coord]:
+            continue
+
+        land_neighbors = sum(
+            1
+            for neighbor in coord.list_neighbors()
+            if neighbor in map_data.tiles and landmask[neighbor]
+        )
+        if land_neighbors > NARROW_LAND_MAX_NEIGHBORS:
+            continue
+        if map_data.tiles[coord].elevation > NARROW_LAND_MAX_ELEVATION:
+            continue
+        to_water.append(coord)
+
+    for coord in to_water:
+        landmask[coord] = False
+
+
+def _collect_regions(
+    map_data: MapData,
+    landmask: dict[HexCoord, bool],
+    target_is_land: bool,
+) -> list[set[HexCoord]]:
+    """Collect connected land or water regions from the current landmask."""
+    regions: list[set[HexCoord]] = []
+    visited: set[HexCoord] = set()
+
+    for coord in map_data.tiles:
+        if coord in visited or landmask[coord] != target_is_land:
+            continue
+
+        region: set[HexCoord] = set()
+        frontier: deque[HexCoord] = deque([coord])
+        visited.add(coord)
+
+        while frontier:
+            current = frontier.popleft()
+            region.add(current)
+            for neighbor in current.list_neighbors():
+                if neighbor not in map_data.tiles:
+                    continue
+                if neighbor in visited or landmask[neighbor] != target_is_land:
+                    continue
+                visited.add(neighbor)
+                frontier.append(neighbor)
+
+        regions.append(region)
+
+    return regions
+
+
+def _touches_display_edge(map_data: MapData, coord: HexCoord) -> bool:
+    """Return whether a tile touches the rectangular display edge."""
+    tile = map_data.tiles[coord]
+    return (
+        tile.display_col == 0
+        or tile.display_row == 0
+        or tile.display_col == map_data.width - 1
+        or tile.display_row == map_data.height - 1
+    )

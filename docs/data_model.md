@@ -27,6 +27,8 @@ Storage should remain axial unless an algorithm benefits from temporary cube con
 Expected fields are intentionally minimal for now:
 
 - `coord`
+- `display_col`
+- `display_row`
 - `elevation`
 - `is_water`
 - `moisture`
@@ -37,6 +39,11 @@ Expected fields are intentionally minimal for now:
 - `start_suitability`
 
 Some fields may remain placeholders until the corresponding pipeline stages are implemented.
+
+For the current board and viewer step:
+
+- `coord` remains the algorithm-facing axial storage coordinate
+- `display_col` and `display_row` represent the rectangular odd-row staggered display position seen by the user and the viewer
 
 For the current scalar-field step:
 
@@ -81,8 +88,9 @@ The current debug viewer reads existing tile state only. It does not add new gam
 
 For the current board-foundation step, `MapData` stores a finite non-wrapping rectangular playable field generated in row-major order with:
 
-- `q` spanning `0..width-1`
-- `r` spanning `0..height-1`
+- display columns spanning `0..width-1`
+- display rows spanning `0..height-1`
+- axial coordinates derived deterministically from those rectangular display positions
 
 This structure should support deterministic generation, inspection, and later debug output.
 
@@ -113,4 +121,4 @@ The repository uses pointy-top axial coordinates. Neighbor logic should therefor
 
 Algorithm-facing helpers may convert to cube coordinates internally, but storage and public-facing interfaces remain axial.
 
-For the current finite board, neighbors outside the rectangular playable field are simply absent from `MapData.tiles`. There is no wraparound behavior.
+For the current finite board, neighbors outside the rectangular playable field are simply absent from `MapData.tiles`. There is no wraparound behavior. The rectangular world shape is therefore a display-layout concern rather than a topology change.

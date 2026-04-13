@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from rnr_mapgen.hex import HexCoord
+from rnr_mapgen.board import display_to_axial
 from rnr_mapgen.types import MapData
 
 
@@ -44,10 +44,10 @@ def render_ascii_biomes(map_data: MapData) -> str:
     preview_height = min(map_data.height, map_data.config.preview_height)
     lines: list[str] = []
 
-    for r in range(preview_height):
+    for display_row in range(preview_height):
         chars: list[str] = []
-        for q in range(preview_width):
-            tile = map_data.tiles[HexCoord(q=q, r=r)]
+        for display_col in range(preview_width):
+            tile = map_data.tiles[display_to_axial(display_col, display_row)]
             if tile.is_water:
                 chars.append(".")
             elif tile.has_river:
@@ -55,7 +55,7 @@ def render_ascii_biomes(map_data: MapData) -> str:
             else:
                 chars.append(BIOME_PREVIEW_CHARS.get(tile.biome or "", "?"))
 
-        indent = " " if r % 2 else ""
+        indent = " " if display_row % 2 else ""
         lines.append(f"{indent}{''.join(chars)}")
 
     return "\n".join(lines)

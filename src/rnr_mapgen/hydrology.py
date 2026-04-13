@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from rnr_mapgen.hex import HexCoord
+from rnr_mapgen.board import display_to_axial
 from rnr_mapgen.types import MapData
 
 RIVER_STRENGTH_SCALE = 4.0
@@ -21,10 +21,10 @@ def render_ascii_preview(map_data: MapData) -> str:
     """Render a compact ASCII preview using land, water, and river markers."""
     lines: list[str] = []
 
-    for r in range(map_data.height):
+    for display_row in range(map_data.height):
         chars: list[str] = []
-        for q in range(map_data.width):
-            tile = map_data.tiles[HexCoord(q=q, r=r)]
+        for display_col in range(map_data.width):
+            tile = map_data.tiles[display_to_axial(display_col, display_row)]
             if tile.is_water:
                 chars.append(".")
             elif tile.has_river:
@@ -32,7 +32,7 @@ def render_ascii_preview(map_data: MapData) -> str:
             else:
                 chars.append("#")
 
-        indent = " " if r % 2 else ""
+        indent = " " if display_row % 2 else ""
         lines.append(f"{indent}{''.join(chars)}")
 
     return "\n".join(lines)

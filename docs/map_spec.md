@@ -8,6 +8,7 @@ The intended v1 output is a macro-scale strategy map composed of pointy-top hexe
 
 - hex orientation: pointy-top
 - coordinate storage and interface: axial coordinates `(q, r)`
+- rectangular player-facing world presentation: odd-row staggered display layout
 - algorithm helpers: cube-coordinate conversion where useful
 - map topology: finite and non-wrapping
 
@@ -39,11 +40,11 @@ The generator should eventually aim for:
 Current implementation note:
 
 - the repository now performs a first-pass deterministic land and water classification
-- this pass is intended to produce usable early coastlines and land patches, not final terrain quality
+- this pass is now continent-oriented and is intended to produce broad oceans, multiple large land regions on many seeds, and less artificial coastlines
 - the repository now also performs first-pass downhill routing and sparse river marking on land tiles
 - the repository now assigns first-pass land biome labels for readable world-layer output
 - the repository now assigns first-pass start suitability scores without placing players yet
-- the repository now includes a debug-only windowed viewer that renders the current generated map as pointy-top hexes with flat terrain colors and simple river overlays
+- the repository now includes a debug-only windowed viewer that renders the current generated map as a rectangular staggered field of pointy-top hexes with flat terrain colors and simple river overlays
 
 ## Boundaries For This Repository
 

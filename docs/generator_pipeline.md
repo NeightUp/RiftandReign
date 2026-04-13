@@ -17,6 +17,7 @@ The generator is planned as a deterministic layered pipeline rather than a singl
 Current implementation note:
 
 - the repository now assigns deterministic normalized scalar values for elevation, moisture, and temperature to every tile
+- elevation now uses broad continent centers, low-frequency macro noise, inland ocean breaks, and latitude-independent macro shaping instead of a simple center bias
 - these are groundwork fields only and are not yet land or water decisions, hydrology, climate zoning, or biome classification
 
 Current configuration note:
@@ -32,8 +33,8 @@ Current configuration note:
 
 Current implementation note:
 
-- the repository now performs a first-pass deterministic land and water classification from the scalar-field layer
-- the current classifier is intentionally simple and is meant as a foundation for later hydrology and biome work
+- the repository now performs a continent-oriented deterministic land and water classification from the scalar-field layer
+- the current classifier uses elevation plus local coherence cleanup and narrow-bridge removal so the map reads more like continents and oceans than a central land blob
 
 ## 4. Hydrology
 
@@ -84,7 +85,7 @@ Current implementation note:
 Current implementation note:
 
 - the repository now supports two debug-output paths from the same deterministic pipeline: the existing text summary plus ASCII preview, and an optional windowed viewer launched with `--view`
-- the windowed viewer renders pointy-top hexes with flat biome and water colors, simple river overlays, panning, zoom, and a compact hover readout
+- the windowed viewer renders a rectangular odd-row staggered field of pointy-top hexes with flat biome and water colors, simple river overlays, panning, zoom, and a compact hover readout
 
 ## Why Build In Layers
 

@@ -40,6 +40,8 @@ class TileData:
     """Tile-level map data placeholder for future generation stages."""
 
     coord: HexCoord
+    display_col: int
+    display_row: int
     elevation: float = 0.0
     is_water: bool = False
     moisture: float = 0.0

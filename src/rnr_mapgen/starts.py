@@ -40,8 +40,9 @@ def get_top_start_candidates(map_data: MapData, limit: int = 5) -> list[TileData
     candidates.sort(
         key=lambda tile: (
             -(tile.start_suitability or float("-inf")),
+            tile.display_row,
+            tile.display_col,
             tile.coord.q,
-            tile.coord.r,
         )
     )
     return candidates[:limit]
@@ -72,7 +73,10 @@ def summarize_starts(map_data: MapData) -> str:
 
     biome_lines = [f"  {biome}: {count}" for biome, count in sorted(biome_counts.items())]
     candidate_lines = [
-        f"  ({tile.coord.q},{tile.coord.r}) score={tile.start_suitability:.2f} biome={tile.biome}"
+        (
+            f"  ({tile.display_col},{tile.display_row}) "
+            f"score={tile.start_suitability:.2f} biome={tile.biome}"
+        )
         for tile in top_candidates
     ]
 

@@ -4,12 +4,12 @@ from rnr_mapgen.types import TileData
 
 
 def test_water_tiles_use_water_debug_color() -> None:
-    tile = TileData(coord=HexCoord(0, 0), is_water=True)
+    tile = TileData(coord=HexCoord(0, 0), display_col=0, display_row=0, is_water=True)
 
     assert get_tile_fill_color(tile) == WATER_COLOR
 
 
 def test_land_biomes_map_to_named_debug_colors() -> None:
-    tile = TileData(coord=HexCoord(2, 1), biome="forest")
+    tile = TileData(coord=HexCoord(2, 1), display_col=2, display_row=1, biome="forest")
 
     assert get_tile_fill_color(tile) == BIOME_COLORS["forest"]
