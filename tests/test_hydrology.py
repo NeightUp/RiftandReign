@@ -60,6 +60,8 @@ def test_downhill_routing_never_points_uphill() -> None:
             continue
 
         target = map_data.tiles[tile.river_flow_to]
+        if target.is_water:
+            continue
         assert target.elevation < tile.elevation
 
 
@@ -69,6 +71,43 @@ def test_default_config_has_some_river_presence() -> None:
     river_tiles = sum(1 for tile in map_data.tiles.values() if tile.has_river)
 
     assert river_tiles > 0
+
+
+def test_visible_river_tiles_are_a_selected_subset_of_drainage_paths() -> None:
+    map_data = _build_map(GeneratorConfig(width=32, height=20, seed=0))
+
+    visible_river_tiles = sum(1 for tile in map_data.tiles.values() if tile.has_river)
+    routed_land_tiles = sum(
+        1
+        for tile in map_data.tiles.values()
+        if not tile.is_water and tile.river_flow_to is not None
+    )
+
+    assert visible_river_tiles < routed_land_tiles
+
+
+def test_large_map_river_network_is_present_but_not_absurdly_saturated() -> None:
+    map_data = _build_map(GeneratorConfig(width=32, height=20, seed=7))
+
+    land_tiles = sum(1 for tile in map_data.tiles.values() if not tile.is_water)
+    visible_river_tiles = sum(1 for tile in map_data.tiles.values() if tile.has_river)
+    river_ratio = visible_river_tiles / land_tiles
+
+    assert 0.01 <= river_ratio <= 0.18
+
+
+def test_visible_rivers_terminate_coherently() -> None:
+    map_data = _build_map(GeneratorConfig(width=24, height=16, seed=0))
+
+    for tile in map_data.tiles.values():
+        if not tile.has_river:
+            continue
+
+        if tile.river_flow_to is None:
+            continue
+
+        target = map_data.tiles[tile.river_flow_to]
+        assert target.is_water or target.has_river or target.flow_accumulation >= tile.flow_accumulation
 
 
 def test_ascii_preview_with_rivers_has_stable_shape() -> None:

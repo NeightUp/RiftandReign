@@ -1,6 +1,6 @@
 # RiftandReign Map Generator
 
-This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, continent-oriented land and water classification, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, and a windowed debug viewer for inspecting the generated map.
+This repository contains the foundation for a deterministic map generator for a hex-based 4X strategy game. The current step establishes the package layout, project documentation, project-tracking files, tested hex-grid utilities, a deterministic finite board/data layer, scalar fields, continent-oriented land and water classification, terrain-driven river-network hydrology, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, and a windowed debug viewer for inspecting the generated map.
 
 The repository is focused on the map generator only. The intended long-term pipeline is:
 
@@ -21,9 +21,9 @@ In scope right now:
 - deterministic project data structures
 - pointy-top hex coordinate math
 - finite non-wrapping board construction with rectangular world-strip display layout
-- deterministic scalar fields for elevation, moisture, temperature, continent shaping, and latitude-aware world-strip behavior
+- deterministic scalar fields for elevation, moisture, temperature, continent shaping, secondary landmass breakup, and latitude-aware world-strip behavior
 - deterministic continent-oriented land and water classification
-- deterministic first-pass hydrology and river marking
+- deterministic terrain-driven hydrology with selected visible river channels
 - deterministic first-pass biome classification
 - deterministic first-pass start suitability scoring
 - configurable CLI-driven map generation for larger maps and seed testing
@@ -65,4 +65,4 @@ Start with [docs/repo_index.md](docs/repo_index.md). It is the authoritative nav
 
 ## Current Status
 
-The CLI now accepts explicit map configuration for width, height, seed, sea level, river source threshold, and ASCII preview size. `--view` opens a lightweight windowed debug viewer that renders the same deterministic generated map as a rectangular staggered pointy-top hex world strip with flat biome colors and simple river overlays. Larger maps use a deterministic top-left preview crop so terminal output remains readable. Final multi-player start placement, gameplay systems, fog of war, wrapping, polar treatment, map types, and final art layers are still intentionally deferred.
+The CLI now accepts explicit map configuration for width, height, seed, sea level, river source threshold, and ASCII preview size. `--view` opens a lightweight windowed debug viewer that renders the same deterministic generated map as a rectangular staggered pointy-top hex world strip with flat biome colors and selected river-channel overlays. Larger maps use a deterministic top-left preview crop so terminal output remains readable. Final multi-player start placement, gameplay systems, fog of war, wrapping, polar treatment, map types, and final art layers are still intentionally deferred.

@@ -24,9 +24,11 @@ OCEAN_CHANNEL_WEIGHT = 0.24
 OCEAN_CENTER_WEIGHT = 0.22
 RIFT_CHANNEL_WEIGHT = 0.18
 CONTINENT_CENTER_WEIGHT = 0.36
+SUBCONTINENT_CENTER_WEIGHT = 0.14
 CONTINENT_NOISE_WEIGHT = 0.26
 CONTINENT_DETAIL_WEIGHT = 0.12
 RIDGE_WEIGHT = 0.10
+COASTAL_BREAKUP_WEIGHT = 0.08
 BASE_ELEVATION_OFFSET = 0.08
 TEMPERATURE_LATITUDE_WEIGHT = 0.72
 TEMPERATURE_NOISE_WEIGHT = 0.18
@@ -58,6 +60,7 @@ def _build_raw_field(map_data: MapData, field_name: FieldName) -> dict[HexCoord,
     """Build the initial unsmoothed scalar field for one channel."""
     values: dict[HexCoord, float] = {}
     continent_centers = _build_continent_centers(map_data)
+    subcontinent_centers = _build_subcontinent_centers(map_data)
     ocean_centers = _build_ocean_centers(map_data)
 
     for coord, tile in map_data.tiles.items():
@@ -71,6 +74,7 @@ def _build_raw_field(map_data: MapData, field_name: FieldName) -> dict[HexCoord,
                 x_ratio=x_ratio,
                 y_ratio=y_ratio,
                 continent_centers=continent_centers,
+                subcontinent_centers=subcontinent_centers,
                 ocean_centers=ocean_centers,
             )
         elif field_name == "moisture":
@@ -97,6 +101,7 @@ def _build_elevation_value(
     x_ratio: float,
     y_ratio: float,
     continent_centers: list[tuple[float, float, float, float, float]],
+    subcontinent_centers: list[tuple[float, float, float, float, float]],
     ocean_centers: list[tuple[float, float, float, float, float]],
 ) -> float:
     """Build a broad continent-friendly elevation field."""
@@ -104,12 +109,19 @@ def _build_elevation_value(
     detail_noise = _value_noise(map_data.seed + 151, "detail", x_ratio, y_ratio, CONTINENT_DETAIL_SCALE)
     ridge_noise = 1.0 - abs((_value_noise(map_data.seed + 211, "ridge", x_ratio, y_ratio, RIDGE_NOISE_SCALE) * 2.0) - 1.0)
     ocean_channel_noise = _value_noise(map_data.seed + 271, "ocean", x_ratio, y_ratio, 2.2)
+    coastal_breakup_noise = _value_noise(map_data.seed + 311, "coast_breakup", x_ratio, y_ratio, 7.4)
     ocean_channel = _clamp_unit((OCEAN_CHANNEL_THRESHOLD - ocean_channel_noise) / OCEAN_CHANNEL_THRESHOLD)
     center_influence = _continent_center_influence(
         map_data=map_data,
         display_col=map_data.tiles[coord].display_col,
         display_row=map_data.tiles[coord].display_row,
         centers=continent_centers,
+    )
+    subcontinent_influence = _continent_center_influence(
+        map_data=map_data,
+        display_col=map_data.tiles[coord].display_col,
+        display_row=map_data.tiles[coord].display_row,
+        centers=subcontinent_centers,
     )
     ocean_center_influence = _continent_center_influence(
         map_data=map_data,
@@ -123,9 +135,11 @@ def _build_elevation_value(
     raw_value = (
         BASE_ELEVATION_OFFSET
         + (CONTINENT_CENTER_WEIGHT * center_influence)
+        + (SUBCONTINENT_CENTER_WEIGHT * subcontinent_influence)
         + (CONTINENT_NOISE_WEIGHT * continent_noise)
         + (CONTINENT_DETAIL_WEIGHT * detail_noise)
         + (RIDGE_WEIGHT * ridge_noise)
+        + (COASTAL_BREAKUP_WEIGHT * (coastal_breakup_noise - 0.5))
         - (OCEAN_CHANNEL_WEIGHT * ocean_channel)
         - (OCEAN_CENTER_WEIGHT * ocean_center_influence)
         - (RIFT_CHANNEL_WEIGHT * rift_channel)
@@ -249,6 +263,31 @@ def _build_ocean_centers(map_data: MapData) -> list[tuple[float, float, float, f
         strength = 0.74 + (
             0.22
             * _hash_unit_interval(map_data.seed + 961 + index, "ocean_strength", HexCoord(index, 4))
+        )
+        centers.append((x, y, radius_x, radius_y, strength))
+
+    return centers
+
+
+def _build_subcontinent_centers(map_data: MapData) -> list[tuple[float, float, float, float, float]]:
+    """Return deterministic smaller secondary landmass descriptors."""
+    center_count = max(2, min(6, (map_data.width * map_data.height) // 180 + 1))
+    centers: list[tuple[float, float, float, float, float]] = []
+
+    for index in range(center_count):
+        x = _hash_unit_interval(map_data.seed + 1061 + index, "subcontinent_x", HexCoord(index, 0))
+        y = _hash_unit_interval(map_data.seed + 1101 + index, "subcontinent_y", HexCoord(index, 1))
+        radius_x = 0.10 + (
+            0.08
+            * _hash_unit_interval(map_data.seed + 1141 + index, "subcontinent_radius_x", HexCoord(index, 2))
+        )
+        radius_y = 0.10 + (
+            0.10
+            * _hash_unit_interval(map_data.seed + 1181 + index, "subcontinent_radius_y", HexCoord(index, 3))
+        )
+        strength = 0.48 + (
+            0.18
+            * _hash_unit_interval(map_data.seed + 1221 + index, "subcontinent_strength", HexCoord(index, 4))
         )
         centers.append((x, y, radius_x, radius_y, strength))
 

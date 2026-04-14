@@ -40,11 +40,11 @@ The generator should eventually aim for:
 Current implementation note:
 
 - the repository now performs a first-pass deterministic land and water classification
-- this pass is now continent-oriented and is intended to produce broad oceans, multiple large land regions on many seeds, and less artificial coastlines
-- the repository now also performs first-pass downhill routing and sparse river marking on land tiles
+- this pass is now continent-oriented and is intended to produce broad oceans, multiple large land regions on many seeds, secondary landmasses, and less artificial coastlines
+- the repository now also performs terrain-driven flow accumulation and selected river-channel marking on land tiles
 - the repository now assigns first-pass land biome labels for readable world-layer output
 - the repository now assigns first-pass start suitability scores without placing players yet
-- the repository now includes a debug-only windowed viewer that renders the current generated map as a rectangular staggered field of pointy-top hexes with flat terrain colors and simple river overlays
+- the repository now includes a debug-only windowed viewer that renders the current generated map as a rectangular staggered field of pointy-top hexes with flat terrain colors and selected river overlays
 
 ## Boundaries For This Repository
 

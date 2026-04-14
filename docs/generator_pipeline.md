@@ -17,7 +17,7 @@ The generator is planned as a deterministic layered pipeline rather than a singl
 Current implementation note:
 
 - the repository now assigns deterministic normalized scalar values for elevation, moisture, and temperature to every tile
-- elevation now uses broad continent centers, low-frequency macro noise, inland ocean breaks, and latitude-independent macro shaping instead of a simple center bias
+- elevation now uses broad continent centers, secondary landmass seeds, low-frequency macro noise, inland ocean breaks, and latitude-independent macro shaping instead of a simple center bias
 - these are groundwork fields only and are not yet land or water decisions, hydrology, climate zoning, or biome classification
 
 Current configuration note:
@@ -34,7 +34,7 @@ Current configuration note:
 Current implementation note:
 
 - the repository now performs a continent-oriented deterministic land and water classification from the scalar-field layer
-- the current classifier uses elevation plus local coherence cleanup and narrow-bridge removal so the map reads more like continents and oceans than a central land blob
+- the current classifier uses elevation plus local coherence cleanup and narrow-bridge removal so the map reads more like continents, subcontinents, and ocean basins than a central land blob
 
 ## 4. Hydrology
 
@@ -44,8 +44,8 @@ Current implementation note:
 
 Current implementation note:
 
-- the repository now computes first-pass downhill outflow targets for land tiles
-- simple flow accumulation is used to mark sparse first-pass river tiles
+- the repository now computes deterministic downhill outflow targets for land tiles, including coherent coastal termination when rivers reach adjacent water
+- weighted flow accumulation and adaptive channel selection are used to promote only significant drainage paths into visible rivers
 - basin filling, lake simulation, and refined hydrology behavior are intentionally deferred
 
 ## 5. Climate

@@ -58,10 +58,10 @@ For the current terrain-classification step:
 
 For the current hydrology step:
 
-- `river_flow_to` stores the first-pass downhill outflow target when one exists
-- `flow_accumulation` stores simple upstream contribution for land routing
-- `has_river` marks tiles selected as first-pass river carriers
-- `river_strength` stores a lightweight derived river magnitude
+- `river_flow_to` stores the deterministic downstream receiver when one exists, which can be either another land tile or an adjacent coastal water tile
+- `flow_accumulation` stores weighted upstream runoff contribution for land routing
+- `has_river` marks tiles selected as visible river carriers rather than every drainage segment
+- `river_strength` stores a lightweight derived visible-channel magnitude
 
 For the current biome step:
 

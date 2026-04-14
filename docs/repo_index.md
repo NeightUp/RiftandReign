@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer with a rectangular display layout, deterministic scalar fields, a continent-oriented land and water classifier, first-pass hydrology groundwork, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a lightweight windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally minimal: project scaffold, documentation, change tracking, core data structures, a finite board layer with a rectangular display layout, deterministic scalar fields, a continent-oriented land and water classifier, terrain-driven hydrology with selected visible river channels, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a lightweight windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
 
 ## Recommended Reading Order
 
@@ -27,6 +27,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 17. `docs/changes/0008_cli_config_and_larger_maps.md`
 18. `docs/changes/0009_windowed_map_viewer.md`
 19. `docs/changes/0010_rectangular_world_and_continent_overhaul.md`
+20. `docs/changes/0011_geography_realism_and_river_networks.md`
 
 ## Current Top-Level Structure
 
@@ -56,7 +57,8 @@ RiftandReign/
 |       +-- 0007_start_suitability.md
 |       +-- 0008_cli_config_and_larger_maps.md
 |       +-- 0009_windowed_map_viewer.md
-|       `-- 0010_rectangular_world_and_continent_overhaul.md
+|       +-- 0010_rectangular_world_and_continent_overhaul.md
+|       `-- 0011_geography_realism_and_river_networks.md
 +-- pyproject.toml
 +-- src/
 |   `-- rnr_mapgen/
@@ -129,6 +131,8 @@ RiftandReign/
   Purpose: detailed historical record for the windowed debug-viewer step.
 - `docs/changes/0010_rectangular_world_and_continent_overhaul.md`
   Purpose: detailed historical record for the rectangular-world layout and continent-generation overhaul step.
+- `docs/changes/0011_geography_realism_and_river_networks.md`
+  Purpose: detailed historical record for the geography-realism and river-network improvement step.
 - `src/rnr_mapgen/__init__.py`
   Purpose: minimal package initialization and version export.
 - `src/rnr_mapgen/__main__.py`
@@ -142,9 +146,9 @@ RiftandReign/
 - `src/rnr_mapgen/colors.py`
   Purpose: flat debug color mapping for water, first-pass land biomes, and viewer UI accents.
 - `src/rnr_mapgen/fields.py`
-  Purpose: deterministic scalar-field generation for continent-shaped elevation, moisture, and latitude-aware temperature.
+  Purpose: deterministic scalar-field generation for continent-shaped elevation, secondary landmasses, moisture, and latitude-aware temperature.
 - `src/rnr_mapgen/hydrology.py`
-  Purpose: deterministic downhill routing, flow accumulation, river marking, and river-aware ASCII preview helpers.
+  Purpose: deterministic downhill routing, weighted runoff accumulation, selected river-channel marking, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
   Purpose: executable entry point that builds the board, applies scalar fields, classifies terrain, adds hydrology groundwork, assigns first-pass biomes, scores start suitability, and either prints a concise debug summary or launches the windowed viewer.
 - `src/rnr_mapgen/starts.py`
@@ -168,7 +172,7 @@ RiftandReign/
 - `tests/test_fields.py`
   Purpose: focused pytest coverage for scalar-field determinism, value ranges, and metadata preservation.
 - `tests/test_hydrology.py`
-  Purpose: focused pytest coverage for hydrology determinism, downhill routing, river placement constraints, and ASCII preview shape.
+  Purpose: focused pytest coverage for hydrology determinism, downhill routing, selected channel behavior, saturation bounds, coherent termination, and ASCII preview shape.
 - `tests/test_starts.py`
   Purpose: focused pytest coverage for start suitability determinism, candidate filtering, ordering stability, and data preservation.
 - `tests/test_terrain.py`
@@ -232,9 +236,9 @@ Implemented now:
 - packaging and executable scaffold
 - pointy-top hex coordinate math
 - finite non-wrapping board creation with rectangular odd-row display layout
-- deterministic scalar fields for continent-shaped elevation, moisture, and latitude-aware temperature
+- deterministic scalar fields for continent-shaped elevation, secondary landmasses, moisture, and latitude-aware temperature
 - deterministic continent-oriented land and water classification
-- deterministic first-pass downhill routing and sparse river marking
+- deterministic terrain-driven downhill routing, runoff accumulation, and selected river-channel marking
 - deterministic first-pass land-biome classification
 - deterministic first-pass start suitability scoring
 - configurable CLI-driven map generation for larger deterministic maps

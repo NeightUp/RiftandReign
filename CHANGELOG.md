@@ -79,3 +79,11 @@ This file records the high-level history of meaningful repository changes. Detai
 - Updated terrain cleanup to preserve coherent continents and oceans while removing tiny fragments, small inland ponds, and narrow low-elevation land bridges.
 - Kept the existing CLI, debug viewer, hydrology, biome, and start-suitability workflow intact while retuning them to consume the new world shape.
 - Added focused pytest coverage for layout round-tripping, viewer stagger behavior, practical land ratios, and multi-region large-map terrain behavior.
+
+## Step 0011 - Geography Realism And River Networks
+
+- Improved macro elevation shaping with secondary landmass seeds and additional coastal breakup so larger maps read more like plausible continents, subcontinents, and ocean basins.
+- Reworked hydrology around weighted runoff, deterministic downhill receivers, coherent coastal termination, and adaptive channel promotion so visible rivers are selected drainage networks instead of a dense mesh.
+- Kept visible river channels as a strict subset of all drainage paths, preserving tributary hierarchy and reducing synthetic vein-like river output in the debug viewer.
+- Retained the existing CLI and windowed viewer workflow while updating docs and tests for the new geography and hydrology behavior.
+- Added focused pytest coverage for channel selection, saturation bounds, and coherent visible-river termination.
