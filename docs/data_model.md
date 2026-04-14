@@ -30,7 +30,10 @@ Expected fields are intentionally minimal for now:
 - `display_col`
 - `display_row`
 - `elevation`
+- `continentality`
+- `ruggedness`
 - `is_water`
+- `water_class`
 - `moisture`
 - `temperature`
 - `biome`
@@ -45,16 +48,21 @@ For the current board and viewer step:
 - `coord` remains the algorithm-facing axial storage coordinate
 - `display_col` and `display_row` represent the rectangular odd-row staggered display position seen by the user and the viewer
 
-For the current scalar-field step:
+For the current macro-world-shape step:
 
-- `elevation` is a normalized scalar field, not final terrain classification
+- `elevation` temporarily stores normalized continent potential before terrain classification
+- `continentality` stores the macro landmass potential used by terrain classification
+- `ruggedness` stores a broad mountain-belt and upland signal used by elevation and biome logic
+- `continentality` and `ruggedness` are intentionally separate so mountain structure does not directly distort continent silhouettes
 - `moisture` is a normalized scalar field, not a biome result
 - `temperature` is a normalized scalar field, not a climate-zone label
 
 For the current terrain-classification step:
 
-- `is_water` is populated by the first-pass terrain classifier
-- `elevation`, `moisture`, and `temperature` remain available for later systems
+- `is_water` is populated by the continent-first terrain classifier
+- `elevation` is rewritten into final terrain elevation derived from continent structure and coastal distance
+- `water_class` distinguishes broad water families such as coast, deep ocean, inland sea, and lake
+- `moisture` and `temperature` remain available for later systems
 
 For the current hydrology step:
 
@@ -111,7 +119,9 @@ The current implementation also uses a small set of practical CLI-facing map con
 - `preview_width`
 - `preview_height`
 
-It may later expand with terrain-tuning values, but should remain explicit and serializable.
+`sea_level_threshold` influences practical land ratio, and `river_source_threshold` acts as a minimum visible-channel promotion floor within the hydrology pass.
+
+The config may later expand with terrain-tuning values, but should remain explicit and serializable.
 
 Viewer launch state is intentionally not part of `GeneratorConfig` because it affects output mode rather than map generation.
 

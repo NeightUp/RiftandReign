@@ -65,12 +65,12 @@ def test_downhill_routing_never_points_uphill() -> None:
         assert target.elevation < tile.elevation
 
 
-def test_default_config_has_some_river_presence() -> None:
-    map_data = _build_map(GeneratorConfig(width=12, height=8, seed=0))
+def test_large_default_style_map_has_meaningful_river_presence() -> None:
+    map_data = _build_map(GeneratorConfig(width=50, height=30, seed=0))
 
     river_tiles = sum(1 for tile in map_data.tiles.values() if tile.has_river)
 
-    assert river_tiles > 0
+    assert river_tiles >= 12
 
 
 def test_visible_river_tiles_are_a_selected_subset_of_drainage_paths() -> None:
@@ -87,13 +87,29 @@ def test_visible_river_tiles_are_a_selected_subset_of_drainage_paths() -> None:
 
 
 def test_large_map_river_network_is_present_but_not_absurdly_saturated() -> None:
-    map_data = _build_map(GeneratorConfig(width=32, height=20, seed=7))
+    map_data = _build_map(GeneratorConfig(width=50, height=30, seed=7))
 
     land_tiles = sum(1 for tile in map_data.tiles.values() if not tile.is_water)
     visible_river_tiles = sum(1 for tile in map_data.tiles.values() if tile.has_river)
     river_ratio = visible_river_tiles / land_tiles
 
     assert 0.01 <= river_ratio <= 0.18
+
+
+def test_visible_river_channels_do_not_bifurcate_inland() -> None:
+    map_data = _build_map(GeneratorConfig(width=50, height=30, seed=0))
+
+    for tile in map_data.tiles.values():
+        if not tile.has_river:
+            continue
+        if tile.river_flow_to is None:
+            continue
+
+        target = map_data.tiles[tile.river_flow_to]
+        if target.is_water:
+            continue
+
+        assert target.has_river
 
 
 def test_visible_rivers_terminate_coherently() -> None:

@@ -1,36 +1,51 @@
-"""Deterministic continent-oriented land and water classification."""
+"""Continent-first landmask and elevation generation."""
 
 from __future__ import annotations
 
 from collections import deque
 
-from rnr_mapgen.board import display_to_axial, iter_board_coords
-from rnr_mapgen.hex import HexCoord
+from rnr_mapgen.board import display_to_axial, iter_neighbor_coords
+from rnr_mapgen.fields import _build_seam_profile, _seam_field, _tile_world_ratios
+from rnr_mapgen.noise import clamp_unit, hash_unit_interval, wrapped_value_noise
 from rnr_mapgen.types import MapData
 
 
-SEA_LEVEL_THRESHOLD = 0.39
-NEIGHBOR_ELEVATION_WEIGHT = 0.24
-COASTAL_VARIATION_WEIGHT = 0.04
-ISOLATED_LAND_MAX_NEIGHBORS = 1
-COHERENT_WATER_TO_LAND_NEIGHBORS = 5
-LAND_JOIN_SCORE = 0.44
-NARROW_LAND_MAX_NEIGHBORS = 2
-NARROW_LAND_MAX_ELEVATION = 0.50
-MIN_LAND_REGION_SIZE = 6
-MIN_INLAND_WATER_REGION_SIZE = 4
+DEFAULT_LAND_RATIO = 0.44
+SEA_LEVEL_TO_LAND_RATIO_SCALE = 0.30
+MIN_LAND_RATIO = 0.38
+MAX_LAND_RATIO = 0.52
+INITIAL_SMOOTHING_PASSES = 2
+MIN_MAJOR_LAND_REGION = 10
+MIN_CONTINENT_REGION = 180
+MIN_INLAND_WATER_REGION = 5
+MIN_MAJOR_OCEAN_REGION = 16
+MIN_INLAND_SEA_REGION = 14
+SEAM_REOPEN_THRESHOLD = 0.70
+COASTAL_ELEVATION_BASE = 0.34
+INLAND_ELEVATION_WEIGHT = 0.18
+UPLIFT_WEIGHT = 0.14
+RUGGEDNESS_WEIGHT = 0.52
+RIDGE_DETAIL_WEIGHT = 0.08
+WATER_DEPTH_WEIGHT = 0.18
+RIDGE_DETAIL_SCALE = 9.0
+COAST_WIDTH_THRESHOLD = 2
 
 
 def classify_terrain(map_data: MapData) -> MapData:
-    """Classify every tile as land or water using broad continent-friendly rules."""
-    initial_land = {
-        coord: _is_land_candidate(map_data, coord) for coord in map_data.tiles
-    }
-    cleaned_land = _cleanup_landmask(map_data, initial_land)
+    """Generate a continent-first landmask and final elevation field."""
+    potential_scores = {coord: tile.continentality for coord, tile in map_data.tiles.items()}
+    landmask = _initial_landmask(map_data, potential_scores)
+    landmask = _smooth_landmask(map_data, landmask)
+    _remove_small_land_regions(map_data, landmask)
+    _reopen_world_seam(map_data, landmask)
+    _fill_small_inland_water_regions(map_data, landmask)
+    _preserve_major_ocean_breaks(map_data, landmask)
 
     for coord, tile in map_data.tiles.items():
-        tile.is_water = not cleaned_land[coord]
+        tile.is_water = not landmask[coord]
 
+    _apply_final_elevation(map_data, potential_scores)
+    _assign_water_classes(map_data)
     return map_data
 
 
@@ -77,74 +92,73 @@ def summarize_terrain(map_data: MapData) -> str:
             ),
             "ASCII terrain preview:",
             render_ascii_terrain(map_data),
-            "Rivers, hydrology, biomes, and start validation are not implemented yet.",
+            "Hydrology, biomes, and start suitability are layered in later pipeline stages.",
         ]
     )
 
 
-def _is_land_candidate(map_data: MapData, coord: HexCoord) -> bool:
-    """Return the initial land or water decision for one tile."""
-    tile = map_data.tiles[coord]
-    neighbor_elevations = [
-        map_data.tiles[neighbor].elevation
-        for neighbor in coord.list_neighbors()
-        if neighbor in map_data.tiles
-    ]
-    neighbor_average = (
-        sum(neighbor_elevations) / len(neighbor_elevations)
-        if neighbor_elevations
-        else tile.elevation
+def _initial_landmask(map_data: MapData, potential_scores: dict) -> dict:
+    """Classify land from macro continent scores using an absolute cutoff with ratio guardrails."""
+    adjusted_scores = {
+        coord: score + _classification_jitter(map_data, coord)
+        for coord, score in potential_scores.items()
+    }
+    target_land_ratio = clamp_unit(
+        DEFAULT_LAND_RATIO + ((0.50 - map_data.config.sea_level_threshold) * SEA_LEVEL_TO_LAND_RATIO_SCALE)
     )
-    terrain_score = (
-        tile.elevation
-        + (NEIGHBOR_ELEVATION_WEIGHT * neighbor_average)
-        + (COASTAL_VARIATION_WEIGHT * (tile.moisture - 0.5))
-    )
-    return terrain_score >= map_data.config.sea_level_threshold
+    target_land_ratio = max(MIN_LAND_RATIO, min(MAX_LAND_RATIO, target_land_ratio))
+    base_cutoff = clamp_unit(map_data.config.sea_level_threshold + 0.03)
+
+    landmask = {coord: adjusted_score > base_cutoff for coord, adjusted_score in adjusted_scores.items()}
+    land_ratio = sum(1 for is_land in landmask.values() if is_land) / len(landmask)
+    if MIN_LAND_RATIO <= land_ratio <= MAX_LAND_RATIO:
+        return landmask
+
+    ordered_scores = sorted(adjusted_scores.values())
+    desired_ratio = target_land_ratio
+    water_count = int(round(len(ordered_scores) * (1.0 - desired_ratio)))
+    threshold_index = max(0, min(len(ordered_scores) - 1, water_count))
+    fallback_cutoff = ordered_scores[threshold_index]
+    return {
+        coord: adjusted_score > fallback_cutoff
+        for coord, adjusted_score in adjusted_scores.items()
+    }
 
 
-def _cleanup_landmask(
-    map_data: MapData, initial_land: dict[HexCoord, bool]
-) -> dict[HexCoord, bool]:
-    """Apply coherence cleanup to reduce speckle and tiny trapped regions."""
-    cleaned = dict(initial_land)
+def _smooth_landmask(map_data: MapData, landmask: dict) -> dict:
+    """Run simple neighborhood-majority smoothing passes on the landmask."""
+    smoothed = dict(landmask)
 
-    for coord in iter_board_coords(map_data.width, map_data.height):
-        land_neighbors = sum(
-            1
-            for neighbor in coord.list_neighbors()
-            if neighbor in map_data.tiles and initial_land[neighbor]
-        )
-        tile = map_data.tiles[coord]
+    for _ in range(INITIAL_SMOOTHING_PASSES):
+        next_mask = dict(smoothed)
+        for coord in map_data.tiles:
+            land_neighbors = sum(
+                1
+                for neighbor in iter_neighbor_coords(map_data, coord)
+                if smoothed[neighbor]
+            )
+            if smoothed[coord] and land_neighbors <= 1:
+                next_mask[coord] = False
+            elif (not smoothed[coord]) and land_neighbors >= 5:
+                next_mask[coord] = True
+        smoothed = next_mask
 
-        if initial_land[coord] and land_neighbors <= ISOLATED_LAND_MAX_NEIGHBORS:
-            cleaned[coord] = False
-        elif (
-            not initial_land[coord]
-            and land_neighbors >= COHERENT_WATER_TO_LAND_NEIGHBORS
-            and tile.elevation >= LAND_JOIN_SCORE
-        ):
-            cleaned[coord] = True
-
-    _remove_small_land_regions(map_data, cleaned)
-    _break_narrow_land_bridges(map_data, cleaned)
-    _fill_small_inland_water_regions(map_data, cleaned)
-    return cleaned
+    return smoothed
 
 
-def _remove_small_land_regions(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
+def _remove_small_land_regions(map_data: MapData, landmask: dict) -> None:
     """Convert tiny detached land fragments into water."""
     for region in _collect_regions(map_data, landmask, target_is_land=True):
-        if len(region) >= MIN_LAND_REGION_SIZE:
+        if len(region) >= MIN_MAJOR_LAND_REGION:
             continue
         for coord in region:
             landmask[coord] = False
 
 
-def _fill_small_inland_water_regions(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
-    """Convert tiny fully enclosed water pockets into land."""
+def _fill_small_inland_water_regions(map_data: MapData, landmask: dict) -> None:
+    """Convert tiny inland water pockets into land."""
     for region in _collect_regions(map_data, landmask, target_is_land=False):
-        if len(region) >= MIN_INLAND_WATER_REGION_SIZE:
+        if len(region) >= MIN_INLAND_WATER_REGION:
             continue
         if any(_touches_display_edge(map_data, coord) for coord in region):
             continue
@@ -152,52 +166,134 @@ def _fill_small_inland_water_regions(map_data: MapData, landmask: dict[HexCoord,
             landmask[coord] = True
 
 
-def _break_narrow_land_bridges(map_data: MapData, landmask: dict[HexCoord, bool]) -> None:
-    """Remove low-elevation one- and two-hex land connectors between larger masses."""
-    to_water: list[HexCoord] = []
-
-    for coord in iter_board_coords(map_data.width, map_data.height):
-        if not landmask[coord]:
+def _reopen_world_seam(map_data: MapData, landmask: dict) -> None:
+    """Keep the intended map seam as a genuine north-south ocean corridor."""
+    seam = _build_seam_profile(map_data)
+    for coord, tile in map_data.tiles.items():
+        x_ratio, y_ratio = _tile_world_ratios(map_data, tile.display_col, tile.display_row)
+        seam_value = _seam_field(seam, x_ratio, y_ratio)
+        if seam_value < SEAM_REOPEN_THRESHOLD:
             continue
-
-        land_neighbors = sum(
-            1
-            for neighbor in coord.list_neighbors()
-            if neighbor in map_data.tiles and landmask[neighbor]
-        )
-        if land_neighbors > NARROW_LAND_MAX_NEIGHBORS:
-            continue
-        if map_data.tiles[coord].elevation > NARROW_LAND_MAX_ELEVATION:
-            continue
-        to_water.append(coord)
-
-    for coord in to_water:
         landmask[coord] = False
 
+def _preserve_major_ocean_breaks(map_data: MapData, landmask: dict) -> None:
+    """Reopen narrow blockers between large ocean basins."""
+    ocean_regions = [
+        region for region in _collect_regions(map_data, landmask, target_is_land=False)
+        if len(region) >= MIN_MAJOR_OCEAN_REGION
+    ]
+    if len(ocean_regions) < 2:
+        return
 
-def _collect_regions(
-    map_data: MapData,
-    landmask: dict[HexCoord, bool],
-    target_is_land: bool,
-) -> list[set[HexCoord]]:
+    region_lookup: dict = {}
+    for index, region in enumerate(ocean_regions):
+        for coord in region:
+            region_lookup[coord] = index
+
+    for coord, tile in map_data.tiles.items():
+        if not landmask[coord]:
+            continue
+        water_neighbors = [
+            neighbor
+            for neighbor in iter_neighbor_coords(map_data, coord)
+            if neighbor in region_lookup
+        ]
+        touching_regions = {region_lookup[neighbor] for neighbor in water_neighbors}
+        if len(water_neighbors) < 2 or len(touching_regions) < 2:
+            continue
+        if tile.elevation > 0.44:
+            continue
+        landmask[coord] = False
+def _apply_final_elevation(map_data: MapData, potential_scores: dict) -> None:
+    """Derive final elevation from continent structure and distance to coast."""
+    coastal_distance = _distance_from_water(map_data)
+    max_land_distance = max(
+        (distance for coord, distance in coastal_distance.items() if not map_data.tiles[coord].is_water),
+        default=1,
+    )
+    max_water_distance = max(
+        (distance for coord, distance in coastal_distance.items() if map_data.tiles[coord].is_water),
+        default=1,
+    )
+
+    for coord, tile in map_data.tiles.items():
+        potential = potential_scores[coord]
+        detail = wrapped_value_noise(
+            map_data.seed + 991,
+            "uplift_detail",
+            tile.display_col / max(map_data.width - 1, 1),
+            tile.display_row / max(map_data.height - 1, 1),
+            RIDGE_DETAIL_SCALE,
+        )
+
+        if tile.is_water:
+            water_depth = coastal_distance[coord] / max(max_water_distance, 1)
+            tile.elevation = clamp_unit((potential * 0.18) - (water_depth * WATER_DEPTH_WEIGHT))
+            continue
+
+        tile.water_class = None
+        tile.is_lake = False
+
+        inland_factor = coastal_distance[coord] / max(max_land_distance, 1)
+        polar_cooling = abs(((tile.display_row / max(map_data.height - 1, 1)) * 2.0) - 1.0)
+        tile.elevation = clamp_unit(
+            COASTAL_ELEVATION_BASE
+            + (inland_factor * INLAND_ELEVATION_WEIGHT)
+            + (potential * UPLIFT_WEIGHT)
+            + (tile.ruggedness * RUGGEDNESS_WEIGHT)
+            + ((detail - 0.5) * RIDGE_DETAIL_WEIGHT)
+            - (polar_cooling * 0.05)
+        )
+
+
+def _distance_from_water(map_data: MapData) -> dict:
+    """Return minimum tile distance to opposite terrain type."""
+    distances: dict = {}
+    frontier: deque = deque()
+
+    for coord, tile in map_data.tiles.items():
+        opposite_neighbor = any(
+            map_data.tiles[neighbor].is_water != tile.is_water
+            for neighbor in iter_neighbor_coords(map_data, coord)
+        )
+        if opposite_neighbor:
+            distances[coord] = 0
+            frontier.append(coord)
+
+    while frontier:
+        current = frontier.popleft()
+        current_is_water = map_data.tiles[current].is_water
+        for neighbor in iter_neighbor_coords(map_data, current):
+            if map_data.tiles[neighbor].is_water != current_is_water:
+                continue
+            if neighbor in distances:
+                continue
+            distances[neighbor] = distances[current] + 1
+            frontier.append(neighbor)
+
+    for coord in map_data.tiles:
+        distances.setdefault(coord, 0)
+
+    return distances
+
+
+def _collect_regions(map_data: MapData, landmask: dict, target_is_land: bool) -> list[set]:
     """Collect connected land or water regions from the current landmask."""
-    regions: list[set[HexCoord]] = []
-    visited: set[HexCoord] = set()
+    regions: list[set] = []
+    visited: set = set()
 
     for coord in map_data.tiles:
         if coord in visited or landmask[coord] != target_is_land:
             continue
 
-        region: set[HexCoord] = set()
-        frontier: deque[HexCoord] = deque([coord])
+        region: set = set()
+        frontier: deque = deque([coord])
         visited.add(coord)
 
         while frontier:
             current = frontier.popleft()
             region.add(current)
-            for neighbor in current.list_neighbors():
-                if neighbor not in map_data.tiles:
-                    continue
+            for neighbor in iter_neighbor_coords(map_data, current):
                 if neighbor in visited or landmask[neighbor] != target_is_land:
                     continue
                 visited.add(neighbor)
@@ -208,7 +304,7 @@ def _collect_regions(
     return regions
 
 
-def _touches_display_edge(map_data: MapData, coord: HexCoord) -> bool:
+def _touches_display_edge(map_data: MapData, coord) -> bool:
     """Return whether a tile touches the rectangular display edge."""
     tile = map_data.tiles[coord]
     return (
@@ -217,3 +313,40 @@ def _touches_display_edge(map_data: MapData, coord: HexCoord) -> bool:
         or tile.display_col == map_data.width - 1
         or tile.display_row == map_data.height - 1
     )
+
+
+def _assign_water_classes(map_data: MapData) -> None:
+    """Assign broad water categories for rendering and future gameplay rules."""
+    coastal_distance = _distance_from_water(map_data)
+    for region in _collect_regions(
+        map_data,
+        {coord: not tile.is_water for coord, tile in map_data.tiles.items()},
+        target_is_land=False,
+    ):
+        touches_north_south_edge = any(
+            map_data.tiles[coord].display_row in {0, map_data.height - 1}
+            for coord in region
+        )
+        touches_east_west_edge = any(
+            map_data.tiles[coord].display_col in {0, map_data.width - 1}
+            for coord in region
+        )
+        is_ocean = touches_north_south_edge or touches_east_west_edge
+
+        for coord in region:
+            tile = map_data.tiles[coord]
+            water_depth = coastal_distance[coord]
+            if is_ocean:
+                tile.water_class = "deep_ocean" if water_depth >= COAST_WIDTH_THRESHOLD else "coast"
+                tile.is_lake = False
+            elif len(region) >= MIN_INLAND_SEA_REGION:
+                tile.water_class = "inland_sea"
+                tile.is_lake = False
+            else:
+                tile.water_class = "lake"
+                tile.is_lake = True
+
+
+def _classification_jitter(map_data: MapData, coord) -> float:
+    """Return a tiny deterministic bias to break terrain-score ties without lattice artifacts."""
+    return (hash_unit_interval(map_data.seed + 1601, "terrain_jitter", coord.q, coord.r) - 0.5) * 1e-6

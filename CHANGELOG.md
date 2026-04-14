@@ -80,10 +80,13 @@ This file records the high-level history of meaningful repository changes. Detai
 - Kept the existing CLI, debug viewer, hydrology, biome, and start-suitability workflow intact while retuning them to consume the new world shape.
 - Added focused pytest coverage for layout round-tripping, viewer stagger behavior, practical land ratios, and multi-region large-map terrain behavior.
 
-## Step 0011 - Geography Realism And River Networks
+## Step 0011 - Generator Reset Continents And Rivers
 
-- Improved macro elevation shaping with secondary landmass seeds and additional coastal breakup so larger maps read more like plausible continents, subcontinents, and ocean basins.
-- Reworked hydrology around weighted runoff, deterministic downhill receivers, coherent coastal termination, and adaptive channel promotion so visible rivers are selected drainage networks instead of a dense mesh.
-- Kept visible river channels as a strict subset of all drainage paths, preserving tributary hierarchy and reducing synthetic vein-like river output in the debug viewer.
-- Retained the existing CLI and windowed viewer workflow while updating docs and tests for the new geography and hydrology behavior.
-- Added focused pytest coverage for channel selection, saturation bounds, and coherent visible-river termination.
+- Replaced the previous terrain internals with a continent-first macro generator built from deterministic primary lobes, subcontinents, island groups, basin breakers, and coastline perturbation.
+- Reworked terrain classification so land ratio is chosen first from macro continent potential, then cleaned into practical continents and oceans, then converted into final continent-derived elevation.
+- Rebuilt hydrology around single-receiver downhill drainage, weighted runoff accumulation, and promoted visible channels so rivers read as selected river systems instead of a full drainage mesh.
+- Preserved the existing CLI, text summary, and windowed debug viewer workflow while keeping the project strictly map-only.
+- Updated docs and focused pytest coverage for the reset architecture, practical large-map land ratios, meaningful river presence, and non-bifurcating visible channels.
+- Continued the refactor with explicit `domain`, `generation`, `rendering`, and `application` package layers, seam-aware continent shaping, narrower coastal water bands, and a separate ruggedness signal to break up concentric mountain and biome rings.
+- Corrected a regression where the macro world pass had started producing directional stripe patterns by simplifying continent generation back to continent clusters with only a soft seam reservation and secondary ruggedness shaping.
+- Tightened the macro world pass again around bounded continent regions, explicit seam reopening, and weak-saddle supercontinent splitting so default-style maps more often stay readable as separate continents instead of reconnecting into one blob.

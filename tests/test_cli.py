@@ -39,11 +39,11 @@ def test_default_cli_config_is_stable() -> None:
     options = parse_args([])
     config = options.config
 
-    assert config.width == 24
-    assert config.height == 16
+    assert config.width == 80
+    assert config.height == 40
     assert config.seed == 0
-    assert config.preview_width == 24
-    assert config.preview_height == 12
+    assert config.preview_width == 32
+    assert config.preview_height == 16
     assert options.viewer.enabled is False
 
 

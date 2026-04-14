@@ -8,9 +8,11 @@ from rnr_mapgen.viewer import (
     display_to_world,
     hex_to_world,
     map_pixel_bounds,
+    nearest_wrapped_world_position,
     screen_to_hex_coord,
     world_to_hex,
     world_to_screen,
+    world_wrap_width,
 )
 
 
@@ -57,3 +59,31 @@ def test_display_to_world_staggers_odd_rows_by_half_hex_width() -> None:
     odd_row_x, _ = display_to_world(display_col=2, display_row=3, radius=DEFAULT_HEX_RADIUS)
 
     assert odd_row_x > even_row_x
+
+
+def test_world_wrap_width_is_positive() -> None:
+    map_data = create_empty_map(GeneratorConfig(width=8, height=6, seed=0))
+
+    assert world_wrap_width(map_data, DEFAULT_HEX_RADIUS) > 0.0
+
+
+def test_screen_to_hex_coord_wraps_horizontally() -> None:
+    map_data = create_empty_map(GeneratorConfig(width=8, height=6, seed=0))
+    coord = display_to_axial(display_col=0, display_row=2)
+    wrapped_x = hex_to_world(coord, DEFAULT_HEX_RADIUS)[0] + world_wrap_width(map_data, DEFAULT_HEX_RADIUS)
+    world_y = hex_to_world(coord, DEFAULT_HEX_RADIUS)[1]
+    view_state = ViewState(offset_x=0.0, offset_y=0.0, zoom=1.0)
+
+    found = screen_to_hex_coord(
+        map_data=map_data,
+        screen_pos=(int(round(wrapped_x)), int(round(world_y))),
+        view_state=view_state,
+    )
+
+    assert found == coord
+
+
+def test_nearest_wrapped_world_position_prefers_shortest_horizontal_copy() -> None:
+    wrapped = nearest_wrapped_world_position((10.0, 5.0), reference_x=95.0, wrap_width=100.0)
+
+    assert wrapped == (110.0, 5.0)

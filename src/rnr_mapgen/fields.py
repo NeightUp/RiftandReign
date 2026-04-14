@@ -1,425 +1,516 @@
-"""Deterministic scalar-field generation for the map foundation."""
+"""Deterministic continent-first scalar-field generation."""
 
 from __future__ import annotations
 
 import math
-from hashlib import blake2b
+from dataclasses import dataclass
 
-from rnr_mapgen.hex import HexCoord
+from rnr_mapgen.noise import clamp_unit, hash_unit_interval, wrapped_fbm_noise, wrapped_value_noise
 from rnr_mapgen.types import MapData
 
 
-FieldName = str
-_FIELD_NAMES: tuple[FieldName, ...] = ("elevation", "moisture", "temperature")
+MAIN_CONTINENT_MIN = 2
+MAIN_CONTINENT_MAX = 4
+ISLAND_GROUP_MIN = 3
+ISLAND_GROUP_MAX = 7
+REGION_LOBES_MIN = 4
+REGION_LOBES_MAX = 7
+RIDGE_CLUSTER_MIN = 6
+RIDGE_CLUSTER_MAX = 10
 
-CONTINENT_NOISE_SCALE = 2.8
-CONTINENT_DETAIL_SCALE = 5.6
-RIDGE_NOISE_SCALE = 8.4
-MOISTURE_NOISE_SCALE = 4.2
-TEMPERATURE_NOISE_SCALE = 3.6
-EDGE_OCEAN_MARGIN = 0.10
-EDGE_OCEAN_WEIGHT = 0.08
-OCEAN_CHANNEL_THRESHOLD = 0.48
-OCEAN_CHANNEL_WEIGHT = 0.24
-OCEAN_CENTER_WEIGHT = 0.22
-RIFT_CHANNEL_WEIGHT = 0.18
-CONTINENT_CENTER_WEIGHT = 0.36
-SUBCONTINENT_CENTER_WEIGHT = 0.14
-CONTINENT_NOISE_WEIGHT = 0.26
-CONTINENT_DETAIL_WEIGHT = 0.12
-RIDGE_WEIGHT = 0.10
-COASTAL_BREAKUP_WEIGHT = 0.08
-BASE_ELEVATION_OFFSET = 0.08
+MAIN_REGION_WEIGHT = 0.74
+ISLAND_GROUP_WEIGHT = 0.14
+BASIN_RELIEF_WEIGHT = 0.10
+DETAIL_WEIGHT = 0.06
+SEAM_ATTENUATION = 0.96
+POLAR_OCEAN_ATTENUATION = 0.28
+
+RUGGED_CLUSTER_WEIGHT = 0.60
+RUGGED_NOISE_WEIGHT = 0.24
+RUGGED_DETAIL_WEIGHT = 0.16
+
+MOISTURE_SCALE = 3.0
+MOISTURE_DETAIL_SCALE = 7.5
+TEMPERATURE_SCALE = 2.4
+TEMPERATURE_DETAIL_SCALE = 6.4
+RUGGED_NOISE_SCALE = 4.2
+RUGGED_DETAIL_SCALE = 9.0
+
+MOISTURE_NOISE_WEIGHT = 0.40
+MOISTURE_DETAIL_WEIGHT = 0.20
+MOISTURE_LATITUDE_WEIGHT = 0.14
+MOISTURE_WATER_BIAS_WEIGHT = 0.18
+MOISTURE_WARP_WEIGHT = 0.08
 TEMPERATURE_LATITUDE_WEIGHT = 0.72
-TEMPERATURE_NOISE_WEIGHT = 0.18
-TEMPERATURE_LONGITUDE_WEIGHT = 0.10
-MOISTURE_NOISE_WEIGHT = 0.56
-MOISTURE_BAND_WEIGHT = 0.24
-MOISTURE_SWIRL_WEIGHT = 0.20
+TEMPERATURE_NOISE_WEIGHT = 0.10
+TEMPERATURE_DETAIL_WEIGHT = 0.08
+TEMPERATURE_RUGGEDNESS_WEIGHT = 0.08
+
+SEAM_EDGE_MARGIN = 0.08
+SEAM_WIDTH_MIN = 0.10
+SEAM_WIDTH_MAX = 0.14
+SQRT_3 = math.sqrt(3.0)
+ANCHOR_LATITUDE_BANDS = (0.28, 0.42, 0.58, 0.72)
+
+
+@dataclass(frozen=True, slots=True)
+class Lobe:
+    """Broad deterministic land, island, or ruggedness lobe."""
+
+    x: float
+    y: float
+    radius_x: float
+    radius_y: float
+    strength: float
+
+
+@dataclass(frozen=True, slots=True)
+class SeamProfile:
+    """Preferred ocean seam running north to south."""
+
+    center_x: float
+    width: float
+    sway: float
+    tilt: float
+
+
+@dataclass(frozen=True, slots=True)
+class ContinentRegion:
+    """One bounded continent-scale region."""
+
+    center_x: float
+    center_y: float
+    radius_x: float
+    radius_y: float
+    strength: float
+    lobes: tuple[Lobe, ...]
 
 
 def generate_scalar_fields(map_data: MapData) -> MapData:
-    """Populate deterministic scalar values on every tile."""
-    raw_values = {
-        field_name: _build_raw_field(map_data, field_name) for field_name in _FIELD_NAMES
-    }
-    smoothed_values = {
-        field_name: _smooth_field(map_data, field_values)
-        for field_name, field_values in raw_values.items()
-    }
+    """Populate deterministic continent potential, ruggedness, moisture, and temperature."""
+    seam = _build_seam_profile(map_data)
+    continent_regions = _build_continent_regions(map_data, seam)
+    island_groups = _build_island_group_lobes(map_data, seam, continent_regions)
+    rugged_clusters = _build_ruggedness_lobes(map_data, seam, continent_regions)
 
-    for coord, tile in map_data.tiles.items():
-        tile.elevation = smoothed_values["elevation"][coord]
-        tile.moisture = smoothed_values["moisture"][coord]
-        tile.temperature = smoothed_values["temperature"][coord]
+    for tile in map_data.tiles.values():
+        x_ratio, y_ratio = _tile_world_ratios(map_data, tile.display_col, tile.display_row)
+        continentality = _build_landmass_potential(
+            map_data=map_data,
+            seam=seam,
+            x_ratio=x_ratio,
+            y_ratio=y_ratio,
+            continent_regions=continent_regions,
+            island_groups=island_groups,
+        )
+        ruggedness = _build_ruggedness(
+            map_data=map_data,
+            x_ratio=x_ratio,
+            y_ratio=y_ratio,
+            continentality=continentality,
+            rugged_clusters=rugged_clusters,
+        )
+
+        tile.continentality = continentality
+        tile.ruggedness = ruggedness
+        tile.elevation = clamp_unit(continentality)
+        tile.moisture = _build_moisture_value(map_data, x_ratio, y_ratio, continentality)
+        tile.temperature = _build_temperature_value(map_data, x_ratio, y_ratio, ruggedness)
 
     return map_data
 
 
-def _build_raw_field(map_data: MapData, field_name: FieldName) -> dict[HexCoord, float]:
-    """Build the initial unsmoothed scalar field for one channel."""
-    values: dict[HexCoord, float] = {}
-    continent_centers = _build_continent_centers(map_data)
-    subcontinent_centers = _build_subcontinent_centers(map_data)
-    ocean_centers = _build_ocean_centers(map_data)
-
-    for coord, tile in map_data.tiles.items():
-        x_ratio = _axis_ratio(tile.display_col, map_data.width)
-        y_ratio = _axis_ratio(tile.display_row, map_data.height)
-
-        if field_name == "elevation":
-            values[coord] = _build_elevation_value(
-                map_data=map_data,
-                coord=coord,
-                x_ratio=x_ratio,
-                y_ratio=y_ratio,
-                continent_centers=continent_centers,
-                subcontinent_centers=subcontinent_centers,
-                ocean_centers=ocean_centers,
-            )
-        elif field_name == "moisture":
-            values[coord] = _build_moisture_value(
-                map_data=map_data,
-                coord=coord,
-                x_ratio=x_ratio,
-                y_ratio=y_ratio,
-            )
-        else:
-            values[coord] = _build_temperature_value(
-                map_data=map_data,
-                coord=coord,
-                x_ratio=x_ratio,
-                y_ratio=y_ratio,
-            )
-
-    return values
-
-
-def _build_elevation_value(
+def _build_landmass_potential(
     map_data: MapData,
-    coord: HexCoord,
+    seam: SeamProfile,
     x_ratio: float,
     y_ratio: float,
-    continent_centers: list[tuple[float, float, float, float, float]],
-    subcontinent_centers: list[tuple[float, float, float, float, float]],
-    ocean_centers: list[tuple[float, float, float, float, float]],
+    continent_regions: list[ContinentRegion],
+    island_groups: list[Lobe],
 ) -> float:
-    """Build a broad continent-friendly elevation field."""
-    continent_noise = _value_noise(map_data.seed + 101, "continent", x_ratio, y_ratio, CONTINENT_NOISE_SCALE)
-    detail_noise = _value_noise(map_data.seed + 151, "detail", x_ratio, y_ratio, CONTINENT_DETAIL_SCALE)
-    ridge_noise = 1.0 - abs((_value_noise(map_data.seed + 211, "ridge", x_ratio, y_ratio, RIDGE_NOISE_SCALE) * 2.0) - 1.0)
-    ocean_channel_noise = _value_noise(map_data.seed + 271, "ocean", x_ratio, y_ratio, 2.2)
-    coastal_breakup_noise = _value_noise(map_data.seed + 311, "coast_breakup", x_ratio, y_ratio, 7.4)
-    ocean_channel = _clamp_unit((OCEAN_CHANNEL_THRESHOLD - ocean_channel_noise) / OCEAN_CHANNEL_THRESHOLD)
-    center_influence = _continent_center_influence(
-        map_data=map_data,
-        display_col=map_data.tiles[coord].display_col,
-        display_row=map_data.tiles[coord].display_row,
-        centers=continent_centers,
-    )
-    subcontinent_influence = _continent_center_influence(
-        map_data=map_data,
-        display_col=map_data.tiles[coord].display_col,
-        display_row=map_data.tiles[coord].display_row,
-        centers=subcontinent_centers,
-    )
-    ocean_center_influence = _continent_center_influence(
-        map_data=map_data,
-        display_col=map_data.tiles[coord].display_col,
-        display_row=map_data.tiles[coord].display_row,
-        centers=ocean_centers,
-    )
-    edge_ocean = _edge_ocean_falloff(x_ratio, y_ratio)
-    rift_channel = _rift_channel_influence(map_data, x_ratio, y_ratio)
+    """Return a macro landmass potential used by terrain classification."""
+    main_field = _continent_region_field(continent_regions, x_ratio, y_ratio)
+    island_field = _lobe_field(island_groups, x_ratio, y_ratio)
+    basin_field = wrapped_value_noise(map_data.seed + 401, "ocean_basin", x_ratio, y_ratio, 2.8)
+    detail_field = wrapped_value_noise(map_data.seed + 431, "continent_detail", x_ratio, y_ratio, 6.0)
+    seam_field = _seam_field(seam, x_ratio, y_ratio)
+    polar_ocean_bias = max(0.0, abs((y_ratio * 2.0) - 1.0) - 0.52)
 
-    raw_value = (
-        BASE_ELEVATION_OFFSET
-        + (CONTINENT_CENTER_WEIGHT * center_influence)
-        + (SUBCONTINENT_CENTER_WEIGHT * subcontinent_influence)
-        + (CONTINENT_NOISE_WEIGHT * continent_noise)
-        + (CONTINENT_DETAIL_WEIGHT * detail_noise)
-        + (RIDGE_WEIGHT * ridge_noise)
-        + (COASTAL_BREAKUP_WEIGHT * (coastal_breakup_noise - 0.5))
-        - (OCEAN_CHANNEL_WEIGHT * ocean_channel)
-        - (OCEAN_CENTER_WEIGHT * ocean_center_influence)
-        - (RIFT_CHANNEL_WEIGHT * rift_channel)
-        - (EDGE_OCEAN_WEIGHT * edge_ocean)
+    base_land = clamp_unit(
+        (main_field * MAIN_REGION_WEIGHT)
+        + (island_field * ISLAND_GROUP_WEIGHT)
+        + ((1.0 - basin_field) * BASIN_RELIEF_WEIGHT)
+        + (detail_field * DETAIL_WEIGHT)
     )
-    return _clamp_unit(raw_value)
+    seam_multiplier = max(0.0, 1.0 - (seam_field * SEAM_ATTENUATION))
+    polar_multiplier = max(0.0, 1.0 - (polar_ocean_bias * POLAR_OCEAN_ATTENUATION))
+    return clamp_unit(base_land * seam_multiplier * polar_multiplier)
 
 
-def _build_moisture_value(
+def _build_ruggedness(
     map_data: MapData,
-    coord: HexCoord,
     x_ratio: float,
     y_ratio: float,
+    continentality: float,
+    rugged_clusters: list[Lobe],
 ) -> float:
-    """Build a broad moisture field with large-scale variation."""
-    noise = _value_noise(map_data.seed + 401, "moisture", x_ratio, y_ratio, MOISTURE_NOISE_SCALE)
-    banding = _value_noise(map_data.seed + 431, "moisture_band", x_ratio, y_ratio, 2.4)
-    swirl = _value_noise(map_data.seed + 461, "moisture_swirl", y_ratio, x_ratio, 3.0)
-    raw_value = (
-        (MOISTURE_NOISE_WEIGHT * noise)
-        + (MOISTURE_BAND_WEIGHT * banding)
-        + (MOISTURE_SWIRL_WEIGHT * swirl)
+    """Return a secondary ruggedness field for mountain ranges and uplands."""
+    cluster_field = _lobe_field(rugged_clusters, x_ratio, y_ratio)
+    warped_x, warped_y = _warp_coords(map_data, x_ratio, y_ratio, "rugged")
+    rugged_noise = 1.0 - abs(
+        (wrapped_fbm_noise(map_data.seed + 563, "ridge_noise", warped_x, warped_y, RUGGED_NOISE_SCALE, octaves=3) * 2.0) - 1.0
     )
-    return _clamp_unit(raw_value)
+    detail_noise = wrapped_fbm_noise(
+        map_data.seed + 577,
+        "ridge_detail",
+        warped_x,
+        warped_y,
+        RUGGED_DETAIL_SCALE,
+        octaves=3,
+    )
+    interior_bias = max(0.0, continentality - 0.22)
+    return clamp_unit(
+        ((cluster_field * RUGGED_CLUSTER_WEIGHT) + (rugged_noise * RUGGED_NOISE_WEIGHT) + (detail_noise * RUGGED_DETAIL_WEIGHT))
+        * (0.30 + interior_bias)
+    )
 
 
-def _build_temperature_value(
-    map_data: MapData,
-    coord: HexCoord,
-    x_ratio: float,
-    y_ratio: float,
-) -> float:
-    """Build a latitude-driven temperature field for a world-strip layout."""
+def _build_moisture_value(map_data: MapData, x_ratio: float, y_ratio: float, continentality: float) -> float:
+    """Return broad moisture values with regional breakup."""
+    latitude_band = 1.0 - abs(((y_ratio * 2.0) - 1.0) * 0.72)
+    warped_x, warped_y = _warp_coords(map_data, x_ratio, y_ratio, "moisture")
+    macro_noise = wrapped_fbm_noise(map_data.seed + 701, "moisture", warped_x, warped_y, MOISTURE_SCALE, octaves=4)
+    detail_noise = wrapped_fbm_noise(
+        map_data.seed + 719,
+        "moisture_detail",
+        (warped_x + 0.17) % 1.0,
+        warped_y,
+        MOISTURE_DETAIL_SCALE,
+        octaves=3,
+        persistence=0.55,
+    )
+    water_bias = 1.0 - (max(0.0, continentality) * 0.50)
+    return clamp_unit(
+        (macro_noise * MOISTURE_NOISE_WEIGHT)
+        + (detail_noise * MOISTURE_DETAIL_WEIGHT)
+        + (latitude_band * MOISTURE_LATITUDE_WEIGHT)
+        + (water_bias * MOISTURE_WATER_BIAS_WEIGHT)
+        + ((wrapped_value_noise(map_data.seed + 733, "moisture_warp_bias", x_ratio, y_ratio, 2.2) - 0.5) * MOISTURE_WARP_WEIGHT)
+    )
+
+
+def _build_temperature_value(map_data: MapData, x_ratio: float, y_ratio: float, ruggedness: float) -> float:
+    """Return a latitude-led temperature field with some local breakup."""
     latitude_distance = abs((y_ratio * 2.0) - 1.0)
     equator_heat = 1.0 - latitude_distance
-    temperature_noise = _value_noise(
-        map_data.seed + 501,
-        "temperature",
-        x_ratio,
-        y_ratio,
-        TEMPERATURE_NOISE_SCALE,
+    warped_x, warped_y = _warp_coords(map_data, x_ratio, y_ratio, "temperature")
+    macro_noise = wrapped_fbm_noise(map_data.seed + 801, "temperature", warped_x, warped_y, TEMPERATURE_SCALE, octaves=4)
+    detail_noise = wrapped_fbm_noise(
+        map_data.seed + 829,
+        "temperature_detail",
+        (warped_x + 0.09) % 1.0,
+        warped_y,
+        TEMPERATURE_DETAIL_SCALE,
+        octaves=3,
     )
-    longitude_variation = _value_noise(
-        map_data.seed + 541,
-        "temperature_longitude",
-        x_ratio,
-        y_ratio,
-        2.0,
+    return clamp_unit(
+        (equator_heat * TEMPERATURE_LATITUDE_WEIGHT)
+        + (macro_noise * TEMPERATURE_NOISE_WEIGHT)
+        + (detail_noise * TEMPERATURE_DETAIL_WEIGHT)
+        + ((1.0 - ruggedness) * TEMPERATURE_RUGGEDNESS_WEIGHT)
     )
-    raw_value = (
-        (TEMPERATURE_LATITUDE_WEIGHT * equator_heat)
-        + (TEMPERATURE_NOISE_WEIGHT * temperature_noise)
-        + (TEMPERATURE_LONGITUDE_WEIGHT * longitude_variation)
-    )
-    return _clamp_unit(raw_value)
 
 
-def _smooth_field(
-    map_data: MapData, field_values: dict[HexCoord, float]
-) -> dict[HexCoord, float]:
-    """Apply one local neighbor-influence pass to reduce isolated spikes."""
-    smoothed: dict[HexCoord, float] = {}
-
-    for coord in map_data.tiles:
-        neighbors = [
-            neighbor for neighbor in coord.list_neighbors() if neighbor in map_data.tiles
-        ]
-        if not neighbors:
-            smoothed[coord] = field_values[coord]
-            continue
-
-        neighbor_average = sum(field_values[neighbor] for neighbor in neighbors) / len(
-            neighbors
+def _build_continent_regions(map_data: MapData, seam: SeamProfile) -> list[ContinentRegion]:
+    """Return explicit bounded continent regions for continents mode."""
+    continent_count = _continent_count(map_data)
+    anchors = _select_continent_anchors(map_data, seam, continent_count)
+    regions: list[ContinentRegion] = []
+    for index, (center_x, center_y) in enumerate(anchors):
+        radius_x = 0.09 + (0.025 * hash_unit_interval(map_data.seed + 111, "region_radius_x", index, 0))
+        radius_y = 0.08 + (0.03 * hash_unit_interval(map_data.seed + 121, "region_radius_y", index, 1))
+        strength = 0.78 + (0.14 * hash_unit_interval(map_data.seed + 131, "region_strength", index, 2))
+        lobe_count = _range_count(
+            map_data.seed + 141 + index,
+            REGION_LOBES_MIN,
+            REGION_LOBES_MAX,
+            "region_lobe_count",
         )
-        smoothed[coord] = _clamp_unit((0.72 * field_values[coord]) + (0.28 * neighbor_average))
-
-    return smoothed
-
-
-def _build_continent_centers(map_data: MapData) -> list[tuple[float, float, float, float, float]]:
-    """Return deterministic broad continent-center descriptors."""
-    center_count = max(3, min(6, (map_data.width * map_data.height) // 140 + 2))
-    centers: list[tuple[float, float, float, float, float]] = []
-
-    for index in range(center_count):
-        x = _hash_unit_interval(map_data.seed + 601 + index, "center_x", HexCoord(index, 0))
-        y = _hash_unit_interval(map_data.seed + 641 + index, "center_y", HexCoord(index, 1))
-        radius_x = 0.18 + (
-            0.14
-            * _hash_unit_interval(map_data.seed + 681 + index, "radius_x", HexCoord(index, 2))
+        lobes: list[Lobe] = []
+        for lobe_index in range(lobe_count):
+            lobes.append(
+                Lobe(
+                    x=(center_x + ((hash_unit_interval(map_data.seed + 151, "region_dx", index, lobe_index) - 0.5) * radius_x * 1.2)) % 1.0,
+                    y=min(0.86, max(0.14, center_y + ((hash_unit_interval(map_data.seed + 161, "region_dy", index, lobe_index) - 0.5) * radius_y * 1.2))),
+                    radius_x=(radius_x * 0.45) + (radius_x * 0.20 * hash_unit_interval(map_data.seed + 171, "region_lobe_rx", index, lobe_index)),
+                    radius_y=(radius_y * 0.45) + (radius_y * 0.24 * hash_unit_interval(map_data.seed + 181, "region_lobe_ry", index, lobe_index)),
+                    strength=0.72 + (0.18 * hash_unit_interval(map_data.seed + 191, "region_lobe_strength", index, lobe_index)),
+                )
+            )
+        regions.append(
+            ContinentRegion(
+                center_x=center_x,
+                center_y=center_y,
+                radius_x=radius_x,
+                radius_y=radius_y,
+                strength=strength,
+                lobes=tuple(lobes),
+            )
         )
-        radius_y = 0.20 + (
-            0.16
-            * _hash_unit_interval(map_data.seed + 721 + index, "radius_y", HexCoord(index, 3))
-        )
-        strength = 0.72 + (
-            0.24
-            * _hash_unit_interval(map_data.seed + 761 + index, "strength", HexCoord(index, 4))
-        )
-        centers.append((x, y, radius_x, radius_y, strength))
-
-    return centers
+    return regions
 
 
-def _build_ocean_centers(map_data: MapData) -> list[tuple[float, float, float, float, float]]:
-    """Return deterministic broad ocean-break descriptors."""
-    center_count = max(2, min(4, (map_data.width * map_data.height) // 220 + 1))
-    centers: list[tuple[float, float, float, float, float]] = []
-
-    for index in range(center_count):
-        x = _hash_unit_interval(map_data.seed + 801 + index, "ocean_x", HexCoord(index, 0))
-        y = _hash_unit_interval(map_data.seed + 841 + index, "ocean_y", HexCoord(index, 1))
-        radius_x = 0.12 + (
-            0.10
-            * _hash_unit_interval(map_data.seed + 881 + index, "ocean_radius_x", HexCoord(index, 2))
-        )
-        radius_y = 0.14 + (
-            0.12
-            * _hash_unit_interval(map_data.seed + 921 + index, "ocean_radius_y", HexCoord(index, 3))
-        )
-        strength = 0.74 + (
-            0.22
-            * _hash_unit_interval(map_data.seed + 961 + index, "ocean_strength", HexCoord(index, 4))
-        )
-        centers.append((x, y, radius_x, radius_y, strength))
-
-    return centers
-
-
-def _build_subcontinent_centers(map_data: MapData) -> list[tuple[float, float, float, float, float]]:
-    """Return deterministic smaller secondary landmass descriptors."""
-    center_count = max(2, min(6, (map_data.width * map_data.height) // 180 + 1))
-    centers: list[tuple[float, float, float, float, float]] = []
-
-    for index in range(center_count):
-        x = _hash_unit_interval(map_data.seed + 1061 + index, "subcontinent_x", HexCoord(index, 0))
-        y = _hash_unit_interval(map_data.seed + 1101 + index, "subcontinent_y", HexCoord(index, 1))
-        radius_x = 0.10 + (
-            0.08
-            * _hash_unit_interval(map_data.seed + 1141 + index, "subcontinent_radius_x", HexCoord(index, 2))
-        )
-        radius_y = 0.10 + (
-            0.10
-            * _hash_unit_interval(map_data.seed + 1181 + index, "subcontinent_radius_y", HexCoord(index, 3))
-        )
-        strength = 0.48 + (
-            0.18
-            * _hash_unit_interval(map_data.seed + 1221 + index, "subcontinent_strength", HexCoord(index, 4))
-        )
-        centers.append((x, y, radius_x, radius_y, strength))
-
-    return centers
-
-
-def _continent_center_influence(
+def _build_island_group_lobes(
     map_data: MapData,
-    display_col: int,
-    display_row: int,
-    centers: list[tuple[float, float, float, float, float]],
-) -> float:
-    """Return the combined influence from several broad continent centers."""
-    x_ratio = _axis_ratio(display_col, map_data.width)
-    y_ratio = _axis_ratio(display_row, map_data.height)
-    influence = 0.0
+    seam: SeamProfile,
+    regions: list[ContinentRegion],
+) -> list[Lobe]:
+    """Return small island groups and short offshore chains."""
+    count = _range_count(map_data.seed + 301, ISLAND_GROUP_MIN, ISLAND_GROUP_MAX, "island_count")
+    lobes: list[Lobe] = []
+    for index in range(count):
+        parent = regions[index % len(regions)]
+        side = -1.0 if hash_unit_interval(map_data.seed + 311, "island_side", index, 0) < 0.5 else 1.0
+        anchor_x = _point_away_from_seam(
+            seam,
+            (parent.center_x + (side * parent.radius_x * (0.9 + (0.6 * hash_unit_interval(map_data.seed + 321, "island_offset", index, 1))))) % 1.0,
+            min_gap=0.03,
+        )
+        anchor_y = min(
+            0.90,
+            max(
+                0.10,
+                parent.center_y + ((hash_unit_interval(map_data.seed + 331, "island_y", index, 2) - 0.5) * parent.radius_y * 1.8),
+            ),
+        )
+        chain_lobes = _range_count(
+            map_data.seed + 341 + index,
+            1,
+            3,
+            "island_chain_lobes",
+        )
+        drift = 0.022 + (0.022 * hash_unit_interval(map_data.seed + 351, "island_drift", index, 3))
+        for lobe_index in range(chain_lobes):
+            lobes.append(
+                Lobe(
+                    x=(anchor_x + ((lobe_index - ((chain_lobes - 1) / 2.0)) * drift)) % 1.0,
+                    y=min(0.92, max(0.08, anchor_y + ((lobe_index - ((chain_lobes - 1) / 2.0)) * drift * 0.6))),
+                    radius_x=0.018 + (0.016 * hash_unit_interval(map_data.seed + 361, "island_radius_x", index, lobe_index)),
+                    radius_y=0.018 + (0.016 * hash_unit_interval(map_data.seed + 371, "island_radius_y", index, lobe_index)),
+                    strength=0.24 + (0.12 * hash_unit_interval(map_data.seed + 381, "island_strength", index, lobe_index)),
+                )
+            )
+    return lobes
 
-    for center_x, center_y, radius_x, radius_y, strength in centers:
-        x_distance = (x_ratio - center_x) / radius_x
-        y_distance = (y_ratio - center_y) / radius_y
+
+def _build_ruggedness_lobes(
+    map_data: MapData,
+    seam: SeamProfile,
+    regions: list[ContinentRegion],
+) -> list[Lobe]:
+    """Return ruggedness clusters attached to continent interiors."""
+    count = _range_count(map_data.seed + 501, RIDGE_CLUSTER_MIN, RIDGE_CLUSTER_MAX, "ridge_count")
+    lobes: list[Lobe] = []
+    for index in range(count):
+        region = regions[index % len(regions)]
+        x = _point_away_from_seam(
+            seam,
+            (region.center_x + ((hash_unit_interval(map_data.seed + 511, "ridge_dx", index, 0) - 0.5) * region.radius_x * 0.9)) % 1.0,
+            min_gap=0.02,
+        )
+        y = min(
+            0.88,
+            max(
+                0.12,
+                region.center_y + ((hash_unit_interval(map_data.seed + 521, "ridge_dy", index, 1) - 0.5) * region.radius_y * 1.3),
+            ),
+        )
+        lobes.append(
+            Lobe(
+                x=x,
+                y=y,
+                radius_x=0.028 + (0.028 * hash_unit_interval(map_data.seed + 531, "ridge_radius_x", index, 2)),
+                radius_y=0.035 + (0.035 * hash_unit_interval(map_data.seed + 541, "ridge_radius_y", index, 3)),
+                strength=0.62 + (0.24 * hash_unit_interval(map_data.seed + 551, "ridge_strength", index, 4)),
+            )
+        )
+    return lobes
+
+
+def _build_seam_profile(map_data: MapData) -> SeamProfile:
+    """Return the preferred north-south ocean seam for display orientation."""
+    center_x = 0.0
+    width = SEAM_WIDTH_MIN + ((SEAM_WIDTH_MAX - SEAM_WIDTH_MIN) * hash_unit_interval(map_data.seed + 41, "seam_width", 0, 2))
+    sway = 0.0
+    tilt = 0.0
+    return SeamProfile(center_x=center_x, width=width, sway=sway, tilt=tilt)
+
+
+def _continent_region_field(regions: list[ContinentRegion], x_ratio: float, y_ratio: float) -> float:
+    """Combine bounded continent regions into one normalized land field."""
+    if not regions:
+        return 0.0
+
+    primary_region = min(
+        regions,
+        key=lambda region: _region_center_distance(region, x_ratio, y_ratio),
+    )
+    envelope = _elliptical_falloff(
+        x_ratio,
+        y_ratio,
+        primary_region.center_x,
+        primary_region.center_y,
+        primary_region.radius_x,
+        primary_region.radius_y,
+    )
+    if envelope <= 0.0:
+        return 0.0
+
+    local_shape = _lobe_field(list(primary_region.lobes), x_ratio, y_ratio)
+    return clamp_unit(envelope * local_shape * primary_region.strength)
+
+
+def _select_continent_anchors(
+    map_data: MapData,
+    seam: SeamProfile,
+    count: int,
+) -> list[tuple[float, float]]:
+    """Select continent anchors in separated world sectors away from the seam."""
+    min_gap = seam.width + 0.08
+    usable_start = min_gap
+    usable_end = 1.0 - (seam.width + 0.06)
+    usable_span = max(usable_end - usable_start, 0.40)
+    sector_width = usable_span / count
+    band_order = _latitude_band_order(map_data, count)
+    anchors: list[tuple[float, float]] = []
+
+    for index in range(count):
+        sector_start = usable_start + (sector_width * index)
+        sector_end = sector_start + sector_width
+        local_x = sector_start + (
+            (0.18 + (0.64 * hash_unit_interval(map_data.seed + 181, "anchor_x", index, 0)))
+            * sector_width
+        )
+        x = _point_away_from_seam(seam, min(local_x, sector_end - 0.01), min_gap=0.04)
+        base_band = ANCHOR_LATITUDE_BANDS[band_order[index % len(band_order)]]
+        y = base_band + ((hash_unit_interval(map_data.seed + 191, "anchor_y", index, 1) - 0.5) * 0.12)
+        anchors.append((x, min(0.78, max(0.22, y))))
+
+    return anchors
+
+
+def _continent_count(map_data: MapData) -> int:
+    """Return a weighted deterministic count where two large continents are most common."""
+    roll = hash_unit_interval(map_data.seed + 101, "main_count_roll", 0, 0)
+    if roll < 0.50:
+        return 2
+    if roll < 0.82:
+        return 3
+    return 4
+
+
+def _latitude_band_order(map_data: MapData, count: int) -> list[int]:
+    """Return a deterministic ordering of latitude bands for continent anchors."""
+    if count == 2:
+        return [1, 2]
+    if count == 3:
+        return [1, 2, 0 if hash_unit_interval(map_data.seed + 171, "band_pick", 0, 0) < 0.5 else 3]
+    if hash_unit_interval(map_data.seed + 171, "band_flip", 0, 1) < 0.5:
+        return [0, 1, 2, 3]
+    return [3, 2, 1, 0]
+
+
+def _lobe_field(lobes: list[Lobe], x_ratio: float, y_ratio: float) -> float:
+    """Combine several broad lobes into one normalized field."""
+    influence = 0.0
+    for lobe in lobes:
+        x_distance = _wrapped_distance(x_ratio, lobe.x) / lobe.radius_x
+        y_distance = (y_ratio - lobe.y) / lobe.radius_y
         distance_squared = (x_distance * x_distance) + (y_distance * y_distance)
         if distance_squared >= 1.0:
             continue
-
-        falloff = (1.0 - distance_squared) ** 2
-        influence += falloff * strength
-
-    return _clamp_unit(influence)
+        influence += (1.0 - distance_squared) ** 2 * lobe.strength
+    return clamp_unit(influence)
 
 
-def _edge_ocean_falloff(x_ratio: float, y_ratio: float) -> float:
-    """Return a mild preference for water near the outermost borders."""
-    min_edge_distance = min(x_ratio, 1.0 - x_ratio, y_ratio, 1.0 - y_ratio)
-    if min_edge_distance >= EDGE_OCEAN_MARGIN:
+def _elliptical_falloff(
+    x_ratio: float,
+    y_ratio: float,
+    center_x: float,
+    center_y: float,
+    radius_x: float,
+    radius_y: float,
+) -> float:
+    """Return a bounded elliptical falloff used to keep continents discrete."""
+    x_distance = _wrapped_distance(x_ratio, center_x) / radius_x
+    y_distance = (y_ratio - center_y) / radius_y
+    distance_squared = (x_distance * x_distance) + (y_distance * y_distance)
+    if distance_squared >= 1.0:
         return 0.0
-
-    return 1.0 - (min_edge_distance / EDGE_OCEAN_MARGIN)
-
-
-def _rift_channel_influence(map_data: MapData, x_ratio: float, y_ratio: float) -> float:
-    """Return deterministic broad ocean-corridor influence."""
-    vertical_center = 0.25 + (
-        0.50
-        * _hash_unit_interval(map_data.seed + 1001, "rift_vertical", HexCoord(0, 0))
-    )
-    vertical_width = 0.06 + (
-        0.06
-        * _hash_unit_interval(map_data.seed + 1011, "rift_vertical_width", HexCoord(0, 1))
-    )
-    horizontal_center = 0.28 + (
-        0.44
-        * _hash_unit_interval(map_data.seed + 1021, "rift_horizontal", HexCoord(0, 2))
-    )
-    horizontal_width = 0.05 + (
-        0.05
-        * _hash_unit_interval(map_data.seed + 1031, "rift_horizontal_width", HexCoord(0, 3))
-    )
-    diagonal_bias = 0.20 + (
-        0.25
-        * _hash_unit_interval(map_data.seed + 1041, "rift_diagonal", HexCoord(0, 4))
-    )
-
-    vertical = _band_falloff(x_ratio, vertical_center, vertical_width)
-    horizontal = _band_falloff(y_ratio, horizontal_center, horizontal_width)
-    diagonal = _band_falloff(x_ratio + (diagonal_bias * y_ratio), 0.55, 0.08)
-    return _clamp_unit(max(vertical, horizontal * 0.9, diagonal * 0.75))
+    value = 1.0 - distance_squared
+    return value * value
 
 
-def _value_noise(seed: int, field_name: str, x_ratio: float, y_ratio: float, scale: float) -> float:
-    """Return smooth deterministic 2D value noise in the 0.0..1.0 range."""
-    x = x_ratio * scale
-    y = y_ratio * scale
-    x0 = math.floor(x)
-    y0 = math.floor(y)
-    x1 = x0 + 1
-    y1 = y0 + 1
-    tx = x - x0
-    ty = y - y0
-
-    v00 = _hash_grid_value(seed, field_name, x0, y0)
-    v10 = _hash_grid_value(seed, field_name, x1, y0)
-    v01 = _hash_grid_value(seed, field_name, x0, y1)
-    v11 = _hash_grid_value(seed, field_name, x1, y1)
-
-    sx = _smoothstep(tx)
-    sy = _smoothstep(ty)
-    i0 = _lerp(v00, v10, sx)
-    i1 = _lerp(v01, v11, sx)
-    return _lerp(i0, i1, sy)
+def _seam_field(seam: SeamProfile, x_ratio: float, y_ratio: float) -> float:
+    """Return the preferred ocean seam influence for one map position."""
+    seam_center = (
+        seam.center_x
+        + ((y_ratio - 0.5) * seam.tilt)
+        + ((0.5 - abs(y_ratio - 0.5)) * seam.sway)
+    ) % 1.0
+    return _band_falloff_wrapped(x_ratio, seam_center, seam.width)
 
 
-def _hash_grid_value(seed: int, field_name: str, grid_x: int, grid_y: int) -> float:
-    """Return a deterministic pseudo-random grid value in the 0.0..1.0 range."""
-    payload = f"{seed}:{field_name}:{grid_x}:{grid_y}".encode("ascii")
-    digest = blake2b(payload, digest_size=8).digest()
-    numerator = int.from_bytes(digest, byteorder="big")
-    return numerator / ((1 << 64) - 1)
+def _range_count(seed: int, minimum: int, maximum: int, label: str) -> int:
+    """Return a deterministic integer count in an inclusive range."""
+    span = maximum - minimum + 1
+    value = int(hash_unit_interval(seed, label, 0, 0) * span)
+    return minimum + min(span - 1, value)
 
 
-def _hash_unit_interval(seed: int, field_name: str, coord: HexCoord) -> float:
-    """Return a deterministic pseudo-random value in the range 0.0..1.0."""
-    payload = f"{seed}:{field_name}:{coord.q}:{coord.r}".encode("ascii")
-    digest = blake2b(payload, digest_size=8).digest()
-    numerator = int.from_bytes(digest, byteorder="big")
-    return numerator / ((1 << 64) - 1)
+def _point_away_from_seam(seam: SeamProfile, x_value: float, min_gap: float) -> float:
+    """Shift an x position away from the seam corridor if needed."""
+    if _wrapped_distance(x_value, seam.center_x) >= (seam.width + min_gap):
+        return x_value
+    direction = 1.0 if ((x_value - seam.center_x) % 1.0) < 0.5 else -1.0
+    return (seam.center_x + (direction * (seam.width + min_gap))) % 1.0
 
 
-def _axis_ratio(index: int, size: int) -> float:
-    """Convert a board index into a stable 0.0..1.0 ratio."""
-    if size <= 1:
-        return 0.5
-    return index / (size - 1)
+def _wrapped_distance(a: float, b: float) -> float:
+    """Return wrapped x-axis distance on the 0..1 world strip."""
+    raw = abs(a - b)
+    return min(raw, 1.0 - raw)
 
 
-def _smoothstep(value: float) -> float:
-    """Return a smooth interpolation factor in the 0.0..1.0 range."""
-    return value * value * (3.0 - (2.0 * value))
+def _region_center_distance(region: ContinentRegion, x_ratio: float, y_ratio: float) -> float:
+    """Return wrapped distance from a sample point to a region center."""
+    return math.hypot(_wrapped_distance(x_ratio, region.center_x), abs(y_ratio - region.center_y))
 
 
-def _band_falloff(value: float, center: float, half_width: float) -> float:
-    """Return a smooth 0.0..1.0 band falloff around a center line."""
-    distance = abs(value - center)
+def _band_falloff_wrapped(value: float, center: float, half_width: float) -> float:
+    """Return a smooth wrapped band influence around a center line."""
+    distance = _wrapped_distance(value, center)
     if distance >= half_width:
         return 0.0
-    return _smoothstep(1.0 - (distance / half_width))
+    normalized = 1.0 - (distance / half_width)
+    return normalized * normalized * (3.0 - (2.0 * normalized))
 
 
-def _lerp(start: float, end: float, factor: float) -> float:
-    """Linearly interpolate between two values."""
-    return start + ((end - start) * factor)
+def _warp_coords(map_data: MapData, x_ratio: float, y_ratio: float, label: str) -> tuple[float, float]:
+    """Warp world-space sample coordinates to reduce large-scale directional artifacts."""
+    warp_x = wrapped_value_noise(map_data.seed + 901, f"{label}_warp_x", x_ratio, y_ratio, 2.0) - 0.5
+    warp_y = wrapped_value_noise(map_data.seed + 911, f"{label}_warp_y", x_ratio, y_ratio, 2.4) - 0.5
+    warped_x = (x_ratio + (warp_x * 0.12)) % 1.0
+    warped_y = max(0.0, min(1.0, y_ratio + (warp_y * 0.10)))
+    return warped_x, warped_y
 
 
-def _clamp_unit(value: float) -> float:
-    """Clamp a scalar value into the 0.0..1.0 range."""
-    return max(0.0, min(1.0, value))
+def _tile_world_ratios(map_data: MapData, display_col: int, display_row: int) -> tuple[float, float]:
+    """Return cylindrical world-space ratios derived from actual hex-center positions."""
+    center_x = SQRT_3 * (display_col + (0.5 if display_row & 1 else 0.0))
+    center_y = 1.5 * display_row
+    wrap_width = SQRT_3 * map_data.width
+    max_height = max(1.5 * max(map_data.height - 1, 1), 1.0)
+    x_ratio = (center_x % wrap_width) / wrap_width
+    y_ratio = center_y / max_height
+    return x_ratio, max(0.0, min(1.0, y_ratio))

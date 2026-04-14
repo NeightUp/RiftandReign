@@ -8,13 +8,16 @@ from rnr_mapgen.board import display_to_axial
 from rnr_mapgen.types import MapData
 
 
-MOUNTAIN_ELEVATION_THRESHOLD = 0.68
-HILL_ELEVATION_THRESHOLD = 0.56
+MOUNTAIN_ELEVATION_THRESHOLD = 0.56
+HILL_ELEVATION_THRESHOLD = 0.45
 TUNDRA_TEMPERATURE_THRESHOLD = 0.28
 DESERT_MOISTURE_THRESHOLD = 0.22
 DESERT_TEMPERATURE_THRESHOLD = 0.45
 FOREST_MOISTURE_THRESHOLD = 0.58
 RIVER_FOREST_BONUS = 0.08
+RUGGED_MOUNTAIN_THRESHOLD = 0.56
+RUGGED_HILL_THRESHOLD = 0.38
+FOREST_RUGGEDNESS_PENALTY = 0.05
 
 BIOME_PREVIEW_CHARS: dict[str, str] = {
     "plains": "p",
@@ -31,9 +34,11 @@ def classify_biomes(map_data: MapData) -> MapData:
     for tile in map_data.tiles.values():
         if tile.is_water:
             tile.biome = None
+            tile.terrain_class = tile.water_class or "water"
             continue
 
         tile.biome = _classify_land_biome(tile)
+        tile.terrain_class = tile.biome
 
     return map_data
 
@@ -115,10 +120,16 @@ def summarize_biomes(map_data: MapData) -> str:
 
 def _classify_land_biome(tile) -> str:
     """Return the first-pass biome label for one land tile."""
-    if tile.elevation >= MOUNTAIN_ELEVATION_THRESHOLD:
+    if (
+        tile.elevation >= MOUNTAIN_ELEVATION_THRESHOLD
+        and tile.ruggedness >= RUGGED_MOUNTAIN_THRESHOLD
+    ):
         return "mountains"
 
-    if tile.elevation >= HILL_ELEVATION_THRESHOLD:
+    if (
+        tile.elevation >= HILL_ELEVATION_THRESHOLD
+        or tile.ruggedness >= RUGGED_HILL_THRESHOLD
+    ):
         return "hills"
 
     if tile.temperature <= TUNDRA_TEMPERATURE_THRESHOLD:
@@ -130,7 +141,11 @@ def _classify_land_biome(tile) -> str:
     ):
         return "desert"
 
-    effective_moisture = tile.moisture + (RIVER_FOREST_BONUS if tile.has_river else 0.0)
+    effective_moisture = (
+        tile.moisture
+        + (RIVER_FOREST_BONUS if tile.has_river else 0.0)
+        - (tile.ruggedness * FOREST_RUGGEDNESS_PENALTY)
+    )
     if effective_moisture >= FOREST_MOISTURE_THRESHOLD:
         return "forest"
 

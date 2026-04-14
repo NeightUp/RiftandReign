@@ -53,14 +53,14 @@ def test_terrain_classification_preserves_metadata_and_scalars() -> None:
     config = GeneratorConfig(width=10, height=7, seed=9)
     map_data = generate_scalar_fields(create_empty_map(config))
     before_scalars = {
-        coord: (tile.elevation, tile.moisture, tile.temperature)
+        coord: (tile.moisture, tile.temperature)
         for coord, tile in map_data.tiles.items()
     }
 
     classify_terrain(map_data)
 
     after_scalars = {
-        coord: (tile.elevation, tile.moisture, tile.temperature)
+        coord: (tile.moisture, tile.temperature)
         for coord, tile in map_data.tiles.items()
     }
 
@@ -88,12 +88,23 @@ def test_ascii_preview_has_consistent_shape() -> None:
 
 def test_default_large_map_land_ratio_stays_in_practical_range() -> None:
     map_data = classify_terrain(
-        generate_scalar_fields(create_empty_map(GeneratorConfig(width=24, height=16, seed=0)))
+        generate_scalar_fields(create_empty_map(GeneratorConfig(width=50, height=30, seed=0)))
     )
 
     land_ratio = sum(1 for tile in map_data.tiles.values() if not tile.is_water) / map_data.tile_count
 
-    assert 0.28 <= land_ratio <= 0.68
+    assert 0.40 <= land_ratio <= 0.60
+
+
+def test_water_tiles_receive_broad_water_classes() -> None:
+    map_data = classify_terrain(
+        generate_scalar_fields(create_empty_map(GeneratorConfig(width=32, height=20, seed=0)))
+    )
+
+    water_classes = {tile.water_class for tile in map_data.tiles.values() if tile.is_water}
+
+    assert water_classes
+    assert water_classes <= {"deep_ocean", "coast", "inland_sea", "lake"}
 
 
 def test_many_large_map_seeds_support_multiple_major_land_regions() -> None:
@@ -101,11 +112,11 @@ def test_many_large_map_seeds_support_multiple_major_land_regions() -> None:
 
     for seed in range(8):
         map_data = classify_terrain(
-            generate_scalar_fields(create_empty_map(GeneratorConfig(width=32, height=20, seed=seed)))
+            generate_scalar_fields(create_empty_map(GeneratorConfig(width=50, height=30, seed=seed)))
         )
         major_regions = [
             region for region in _collect_land_regions(map_data)
-            if len(region) >= 20
+            if len(region) >= 40
         ]
         if len(major_regions) >= 2:
             seeds_with_multiple_regions += 1

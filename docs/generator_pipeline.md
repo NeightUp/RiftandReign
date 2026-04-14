@@ -8,17 +8,18 @@ The generator is planned as a deterministic layered pipeline rather than a singl
 - Outputs: deterministic random context and normalized configuration values
 - Purpose: establish reproducibility and the parameters that drive every later stage
 
-## 2. Base Scalar Fields
+## 2. Macro World-Shape Fields
 
 - Inputs: seed context, map dimensions, configuration
-- Outputs: scalar fields such as continentality, roughness, moisture tendency, and temperature tendency
-- Purpose: create the continuous underlying signals from which terrain and climate can later be derived
+- Outputs: macro continent potential, ruggedness, moisture tendency, and temperature tendency
+- Purpose: establish broad landmass structure before later stages commit to coastlines, elevation, rivers, and biomes
 
 Current implementation note:
 
-- the repository now assigns deterministic normalized scalar values for elevation, moisture, and temperature to every tile
-- elevation now uses broad continent centers, secondary landmass seeds, low-frequency macro noise, inland ocean breaks, and latitude-independent macro shaping instead of a simple center bias
-- these are groundwork fields only and are not yet land or water decisions, hydrology, climate zoning, or biome classification
+- the repository now assigns deterministic normalized macro values to every tile before terrain classification
+- the current pass builds continent potential from multiple bounded continent regions, smaller island-group seeds, a preferred ocean seam corridor, and latitude-aware world-strip context
+- ruggedness is generated as a separate secondary field for mountain ranges and uplands so it can influence elevation without reshaping the whole world into directional bands
+- the resulting `elevation` value at this stage is temporary continent potential, not yet final terrain elevation
 
 Current configuration note:
 
@@ -27,14 +28,15 @@ Current configuration note:
 
 ## 3. Landmask And Elevation
 
-- Inputs: base scalar fields, configuration thresholds
+- Inputs: macro continent potential, moisture and temperature tendencies, configuration thresholds
 - Outputs: land or water classification and elevation values per hex
 - Purpose: form coastlines, landmasses, basins, and highlands that define the macro terrain layout
 
 Current implementation note:
 
-- the repository now performs a continent-oriented deterministic land and water classification from the scalar-field layer
-- the current classifier uses elevation plus local coherence cleanup and narrow-bridge removal so the map reads more like continents, subcontinents, and ocean basins than a central land blob
+- the repository now converts macro continent potential into a target land ratio, smooths the resulting landmask, removes tiny fragments, reopens the preferred world seam as a true ocean corridor, splits oversized supercontinents at weak saddles when needed, fills small inland holes, and reopens narrow low-elevation bridges between major ocean basins
+- final tile elevation is then derived from the cleaned continent mask, distance from coast, macro landmass potential, a separate ruggedness field, and a compact uplift-detail field
+- water tiles are also assigned broad categories such as coast, deep ocean, inland sea, and lake
 
 ## 4. Hydrology
 
@@ -44,8 +46,8 @@ Current implementation note:
 
 Current implementation note:
 
-- the repository now computes deterministic downhill outflow targets for land tiles, including coherent coastal termination when rivers reach adjacent water
-- weighted flow accumulation and adaptive channel selection are used to promote only significant drainage paths into visible rivers
+- the repository now computes one deterministic downhill receiver per land tile, including coherent coastal termination when rivers reach adjacent water
+- weighted flow accumulation and adaptive channel promotion are used to mark only meaningful drainage paths as visible rivers
 - basin filling, lake simulation, and refined hydrology behavior are intentionally deferred
 
 ## 5. Climate

@@ -1,36 +1,35 @@
-"""Deterministic terrain-driven hydrology and visible river-network selection."""
+"""Basin-aware drainage routing and visible river-channel selection."""
 
 from __future__ import annotations
 
 import math
 from collections import defaultdict
 
-from rnr_mapgen.board import display_to_axial
-from rnr_mapgen.hex import HexCoord
+from rnr_mapgen.board import display_to_axial, iter_neighbor_coords
 from rnr_mapgen.types import MapData
 
 
-BASE_RUNOFF = 0.35
-MOISTURE_RUNOFF_WEIGHT = 1.70
-UPLAND_RUNOFF_WEIGHT = 0.55
-COLD_RUNOFF_WEIGHT = 0.30
+BASE_RUNOFF = 0.45
+MOISTURE_RUNOFF_WEIGHT = 1.25
+UPLAND_RUNOFF_WEIGHT = 1.00
+COLD_RUNOFF_WEIGHT = 0.25
 DOWNHILL_EPSILON = 1e-6
-SOURCE_ELEVATION_THRESHOLD = 0.28
-CHANNEL_THRESHOLD_QUANTILE = 0.78
-MIN_CHANNEL_THRESHOLD = 3.0
-CONTINUATION_FACTOR = 0.50
-SOURCE_FACTOR = 1.00
-MAX_RIVER_TILE_RATIO = 0.18
-MIN_SOURCE_DISTANCE_FROM_COAST = 0
-RIVER_STRENGTH_SCALE = 2.6
+MIN_SOURCE_ELEVATION = 0.36
+MIN_SOURCE_FLOW = 6.0
+RIVER_FLOW_QUANTILE = 0.68
+MAJOR_RIVER_FLOW_QUANTILE = 0.86
+VISIBLE_CONTINUATION_FACTOR = 0.42
+MIN_VISIBLE_PATH_LENGTH = 3
+MAX_VISIBLE_RIVER_RATIO = 0.14
+RIVER_STRENGTH_SCALE = 2.2
 
 
 def generate_hydrology(map_data: MapData) -> MapData:
-    """Populate downhill routing, accumulation, and selected visible river channels."""
+    """Populate deterministic drainage routing and visible river channels."""
     _reset_hydrology_fields(map_data)
-    upstream_map = _assign_outflows(map_data)
+    upstream_map = _assign_downstream_receivers(map_data)
     _accumulate_flow(map_data)
-    _mark_rivers(map_data, upstream_map)
+    _mark_visible_rivers(map_data, upstream_map)
     return map_data
 
 
@@ -85,7 +84,7 @@ def summarize_hydrology(map_data: MapData) -> str:
             ),
             "ASCII terrain preview:",
             render_ascii_preview(map_data),
-            "Biomes and start validation are not implemented yet.",
+            "Biome classification and start suitability are layered in later pipeline stages.",
         ]
     )
 
@@ -99,9 +98,9 @@ def _reset_hydrology_fields(map_data: MapData) -> None:
         tile.river_strength = 0.0
 
 
-def _assign_outflows(map_data: MapData) -> dict[HexCoord, list[HexCoord]]:
-    """Assign one deterministic downstream receiver per land tile when available."""
-    upstream_map: dict[HexCoord, list[HexCoord]] = defaultdict(list)
+def _assign_downstream_receivers(map_data: MapData) -> dict:
+    """Assign one deterministic downstream receiver per land tile."""
+    upstream_map: dict = defaultdict(list)
 
     for coord, tile in map_data.tiles.items():
         if tile.is_water:
@@ -109,15 +108,14 @@ def _assign_outflows(map_data: MapData) -> dict[HexCoord, list[HexCoord]]:
 
         downhill_land_neighbors = [
             neighbor
-            for neighbor in coord.list_neighbors()
-            if neighbor in map_data.tiles
-            and not map_data.tiles[neighbor].is_water
+            for neighbor in iter_neighbor_coords(map_data, coord)
+            if not map_data.tiles[neighbor].is_water
             and map_data.tiles[neighbor].elevation < (tile.elevation - DOWNHILL_EPSILON)
         ]
         coastal_water_neighbors = [
             neighbor
-            for neighbor in coord.list_neighbors()
-            if neighbor in map_data.tiles and map_data.tiles[neighbor].is_water
+            for neighbor in iter_neighbor_coords(map_data, coord)
+            if map_data.tiles[neighbor].is_water
         ]
 
         if downhill_land_neighbors:
@@ -131,9 +129,7 @@ def _assign_outflows(map_data: MapData) -> dict[HexCoord, list[HexCoord]]:
             )
             tile.river_flow_to = receiver
             upstream_map[receiver].append(coord)
-            continue
-
-        if coastal_water_neighbors:
+        elif coastal_water_neighbors:
             tile.river_flow_to = min(
                 coastal_water_neighbors,
                 key=lambda neighbor: (
@@ -146,14 +142,11 @@ def _assign_outflows(map_data: MapData) -> dict[HexCoord, list[HexCoord]]:
 
 
 def _accumulate_flow(map_data: MapData) -> None:
-    """Accumulate weighted runoff in descending elevation order."""
-    land_coords = [
-        coord for coord, tile in map_data.tiles.items() if not tile.is_water
-    ]
+    """Accumulate weighted runoff through the full drainage graph."""
+    land_coords = [coord for coord, tile in map_data.tiles.items() if not tile.is_water]
 
     for coord in land_coords:
-        tile = map_data.tiles[coord]
-        tile.flow_accumulation = _tile_runoff(tile)
+        map_data.tiles[coord].flow_accumulation = _local_runoff(map_data.tiles[coord])
 
     ordered_coords = sorted(
         land_coords,
@@ -176,66 +169,176 @@ def _accumulate_flow(map_data: MapData) -> None:
         target.flow_accumulation += tile.flow_accumulation
 
 
-def _mark_rivers(map_data: MapData, upstream_map: dict[HexCoord, list[HexCoord]]) -> None:
-    """Promote only significant drainage paths into visible river channels."""
+def _mark_visible_rivers(map_data: MapData, upstream_map: dict) -> None:
+    """Promote only meaningful drainage channels into visible rivers."""
     land_tiles = [tile for tile in map_data.tiles.values() if not tile.is_water]
     if not land_tiles:
         return
 
-    threshold = _channel_threshold(map_data, land_tiles)
-    continuation_threshold = threshold * CONTINUATION_FACTOR
-    source_threshold = threshold * SOURCE_FACTOR
-    coastal_distance = _coastal_distance(map_data)
+    stream_order = _compute_strahler_order(map_data, upstream_map)
+    source_flow_threshold, continuation_threshold, major_flow_threshold = _channel_thresholds(
+        map_data,
+        land_tiles,
+    )
 
-    sources = [
+    candidate_sources = [
         tile.coord
         for tile in land_tiles
         if _is_visible_source(
             map_data=map_data,
             coord=tile.coord,
             upstream_map=upstream_map,
-            coastal_distance=coastal_distance,
-            source_threshold=source_threshold,
+            stream_order=stream_order,
+            source_flow_threshold=source_flow_threshold,
         )
     ]
-    sources.sort(
+    candidate_sources.sort(
         key=lambda coord: (
             -map_data.tiles[coord].flow_accumulation,
+            -stream_order.get(coord, 1),
             map_data.tiles[coord].display_row,
             map_data.tiles[coord].display_col,
         )
     )
 
-    max_visible_tiles = max(1, int(len(land_tiles) * MAX_RIVER_TILE_RATIO))
-    visible_count = 0
+    max_visible_tiles = max(1, int(len(land_tiles) * MAX_VISIBLE_RIVER_RATIO))
+    visible_paths: list[list] = []
+    used_tiles: set = set()
 
-    for source in sources:
-        current = source
-        while current is not None and visible_count < max_visible_tiles:
-            tile = map_data.tiles[current]
-            if tile.is_water:
-                break
-            if tile.flow_accumulation < continuation_threshold and current != source:
-                break
-            if tile.has_river:
-                break
+    for source in candidate_sources:
+        path = _trace_visible_path(
+            map_data=map_data,
+            source=source,
+            stream_order=stream_order,
+            continuation_threshold=continuation_threshold,
+            major_flow_threshold=major_flow_threshold,
+            used_tiles=used_tiles,
+        )
+        if len(path) < MIN_VISIBLE_PATH_LENGTH:
+            continue
 
+        if len(used_tiles) + len(path) > max_visible_tiles:
+            continue
+
+        visible_paths.append(path)
+        used_tiles.update(path)
+
+    for path in visible_paths:
+        for coord in path:
+            tile = map_data.tiles[coord]
             tile.has_river = True
-            tile.river_strength = _river_strength(tile.flow_accumulation, continuation_threshold)
-            visible_count += 1
-
-            downstream = tile.river_flow_to
-            if downstream is None:
-                break
-            if map_data.tiles[downstream].is_water:
-                break
-            current = downstream
+            tile.river_strength = _river_strength(tile.flow_accumulation, stream_order.get(coord, 1))
 
 
-def _tile_runoff(tile) -> float:
-    """Return the weighted local runoff contribution for one land tile."""
-    upland_bonus = max(0.0, tile.elevation - 0.45)
-    cold_bonus = max(0.0, 0.42 - tile.temperature)
+def _compute_strahler_order(map_data: MapData, upstream_map: dict) -> dict:
+    """Return Strahler stream order for every routed land tile."""
+    stream_order: dict = {}
+    ordered_coords = sorted(
+        (coord for coord, tile in map_data.tiles.items() if not tile.is_water),
+        key=lambda coord: (
+            map_data.tiles[coord].elevation,
+            map_data.tiles[coord].display_row,
+            map_data.tiles[coord].display_col,
+        ),
+    )
+
+    for coord in ordered_coords:
+        upstream_orders = [
+            stream_order[upstream]
+            for upstream in upstream_map.get(coord, [])
+            if upstream in stream_order
+        ]
+        if not upstream_orders:
+            stream_order[coord] = 1
+            continue
+
+        highest = max(upstream_orders)
+        if upstream_orders.count(highest) >= 2:
+            stream_order[coord] = highest + 1
+        else:
+            stream_order[coord] = highest
+
+    return stream_order
+
+
+def _channel_thresholds(map_data: MapData, land_tiles: list) -> tuple[float, float, float]:
+    """Return source, continuation, and major-river flow thresholds."""
+    flows = sorted(tile.flow_accumulation for tile in land_tiles)
+    source_index = min(len(flows) - 1, max(0, int(len(flows) * RIVER_FLOW_QUANTILE)))
+    major_index = min(len(flows) - 1, max(0, int(len(flows) * MAJOR_RIVER_FLOW_QUANTILE)))
+    source_flow = max(
+        MIN_SOURCE_FLOW,
+        map_data.config.river_source_threshold,
+        flows[source_index],
+    )
+    major_flow = max(source_flow * 1.45, flows[major_index])
+    continuation_flow = max(MIN_SOURCE_FLOW * VISIBLE_CONTINUATION_FACTOR, source_flow * VISIBLE_CONTINUATION_FACTOR)
+    return source_flow, continuation_flow, major_flow
+
+
+def _is_visible_source(
+    map_data: MapData,
+    coord,
+    upstream_map: dict,
+    stream_order: dict,
+    source_flow_threshold: float,
+) -> bool:
+    """Return whether a tile is a valid visible-river source."""
+    tile = map_data.tiles[coord]
+    if tile.flow_accumulation < source_flow_threshold:
+        return False
+    if tile.elevation < MIN_SOURCE_ELEVATION:
+        return False
+    if stream_order.get(coord, 1) < 1:
+        return False
+    return not any(
+        map_data.tiles[upstream].flow_accumulation >= source_flow_threshold
+        for upstream in upstream_map.get(coord, [])
+    )
+
+
+def _trace_visible_path(
+    map_data: MapData,
+    source,
+    stream_order: dict,
+    continuation_threshold: float,
+    major_flow_threshold: float,
+    used_tiles: set,
+) -> list:
+    """Trace one visible river path from a source until coast, sink, or weak termination."""
+    path: list = []
+    current = source
+
+    while current is not None:
+        tile = map_data.tiles[current]
+        if tile.is_water or current in used_tiles:
+            break
+
+        path.append(current)
+        downstream = tile.river_flow_to
+        if downstream is None:
+            break
+
+        downstream_tile = map_data.tiles[downstream]
+        if downstream_tile.is_water:
+            break
+
+        if (
+            downstream_tile.flow_accumulation < continuation_threshold
+            and tile.flow_accumulation < major_flow_threshold
+            and stream_order.get(current, 1) <= 1
+        ):
+            break
+
+        current = downstream
+
+    return path
+
+
+def _local_runoff(tile) -> float:
+    """Return weighted local runoff for one land tile."""
+    upland_bonus = max(0.0, tile.elevation - 0.40)
+    cold_bonus = max(0.0, 0.40 - tile.temperature)
     return (
         BASE_RUNOFF
         + (tile.moisture * MOISTURE_RUNOFF_WEIGHT)
@@ -244,66 +347,10 @@ def _tile_runoff(tile) -> float:
     )
 
 
-def _channel_threshold(map_data: MapData, land_tiles: list) -> float:
-    """Return an adaptive visible-channel threshold from flow accumulation."""
-    flows = sorted(tile.flow_accumulation for tile in land_tiles)
-    index = min(len(flows) - 1, max(0, int(len(flows) * CHANNEL_THRESHOLD_QUANTILE)))
-    quantile_threshold = flows[index]
-    return max(MIN_CHANNEL_THRESHOLD, map_data.config.river_source_threshold * 2.4, quantile_threshold)
-
-
-def _is_visible_source(
-    map_data: MapData,
-    coord: HexCoord,
-    upstream_map: dict[HexCoord, list[HexCoord]],
-    coastal_distance: dict[HexCoord, int],
-    source_threshold: float,
-) -> bool:
-    """Return whether a tile should seed a visible river channel."""
-    tile = map_data.tiles[coord]
-    if tile.flow_accumulation < source_threshold:
-        return False
-    if tile.elevation < SOURCE_ELEVATION_THRESHOLD:
-        return False
-    if coastal_distance.get(coord, 0) < MIN_SOURCE_DISTANCE_FROM_COAST:
-        return False
-    return not any(
-        map_data.tiles[upstream].flow_accumulation >= source_threshold
-        for upstream in upstream_map.get(coord, [])
+def _river_strength(flow_accumulation: float, stream_order: int) -> float:
+    """Return a visible-channel strength value for rendering."""
+    return max(
+        1.0,
+        (math.log2(max(flow_accumulation, 1.0) + 1.0) * 0.75)
+        + (stream_order * RIVER_STRENGTH_SCALE * 0.25),
     )
-
-
-def _coastal_distance(map_data: MapData) -> dict[HexCoord, int]:
-    """Return the minimum number of land steps from each land tile to coastal water."""
-    distances: dict[HexCoord, int] = {}
-    frontier: list[HexCoord] = []
-
-    for coord, tile in map_data.tiles.items():
-        if tile.is_water:
-            continue
-        if any(
-            neighbor in map_data.tiles and map_data.tiles[neighbor].is_water
-            for neighbor in coord.list_neighbors()
-        ):
-            distances[coord] = 0
-            frontier.append(coord)
-
-    index = 0
-    while index < len(frontier):
-        current = frontier[index]
-        index += 1
-        for neighbor in current.list_neighbors():
-            if neighbor not in map_data.tiles or map_data.tiles[neighbor].is_water:
-                continue
-            if neighbor in distances:
-                continue
-            distances[neighbor] = distances[current] + 1
-            frontier.append(neighbor)
-
-    return distances
-
-
-def _river_strength(flow_accumulation: float, continuation_threshold: float) -> float:
-    """Return a compact visible strength value for selected river tiles."""
-    ratio = max(1.0, flow_accumulation / max(continuation_threshold, 1.0))
-    return max(1.0, math.log2(ratio + 1.0) * RIVER_STRENGTH_SCALE / 2.0)

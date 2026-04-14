@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from rnr_mapgen.hex import HexCoord
 from rnr_mapgen.types import MapData, TileData
 
 
@@ -131,7 +130,7 @@ def _score_tile(map_data: MapData, coord: HexCoord, tile: TileData) -> float | N
     if len(nearby_land) < MIN_NEARBY_LAND:
         return 0.0
 
-    edge_penalty = _edge_penalty(coord, map_data.width, map_data.height)
+    edge_penalty = _edge_penalty(tile.display_col, tile.display_row, map_data.width, map_data.height)
     score = (
         BASE_LAND_SCORE
         + (len(nearby_land) * NEARBY_LAND_WEIGHT)
@@ -146,11 +145,11 @@ def _score_tile(map_data: MapData, coord: HexCoord, tile: TileData) -> float | N
     return max(0.0, score)
 
 
-def _edge_penalty(coord: HexCoord, width: int, height: int) -> int:
-    """Return a simple edge-distance penalty for cramped map borders."""
-    return min(
-        coord.q,
-        coord.r,
-        (width - 1) - coord.q,
-        (height - 1) - coord.r,
-    ) == 0
+def _edge_penalty(display_col: int, display_row: int, width: int, height: int) -> int:
+    """Return a simple edge-distance penalty for cramped visible borders."""
+    return int(
+        display_row == 0
+        or display_row == height - 1
+        or display_col == 0
+        or display_col == width - 1
+    )
