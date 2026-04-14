@@ -10,7 +10,7 @@ The intended v1 output is a macro-scale strategy map composed of pointy-top hexe
 - coordinate storage and interface: axial coordinates `(q, r)`
 - rectangular player-facing world presentation: odd-row staggered display layout
 - algorithm helpers: cube-coordinate conversion where useful
-- map topology: finite and non-wrapping
+- map topology: cylindrical east or west wrapping for generation, displayed as a rectangular world strip
 
 ## Intended Tile-Level Outputs
 
@@ -39,11 +39,11 @@ The generator should eventually aim for:
 
 Current implementation note:
 
-- the repository now performs a continent-first deterministic land and water classification
+- the repository now performs continent-first deterministic land and water classification from organic continent chains, ocean-gap islands, and a preferred ocean seam
 - this pass is intended to produce broad oceans, multiple major land regions on many seeds, secondary landmasses, island groups, and less synthetic coastlines
-- final tile elevation is now derived from continent structure, inland uplift, and distance from coast rather than from a simple thresholded scalar blob
-- the repository now also performs basin-aware flow accumulation and selected river-channel marking on land tiles
-- the repository now assigns first-pass land biome labels for readable world-layer output
+- final tile elevation is now derived from continent structure, ridge-chain uplift, inland distance, and coastal relation rather than from a simple thresholded scalar blob
+- the repository now also performs downhill flow accumulation and mouth-upstream visible river-network selection on land tiles
+- the repository now assigns first-pass land biome labels from geography-aware temperature and moisture fields rather than simple latitude bands alone
 - the repository now assigns first-pass start suitability scores without placing players yet
 - the repository now includes a debug-only windowed viewer that renders the current generated map as a rectangular staggered field of pointy-top hexes with flat terrain colors and selected river overlays
 

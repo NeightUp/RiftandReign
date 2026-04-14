@@ -33,7 +33,7 @@ The following are intentionally excluded from this phase:
 
 ## First Playable Map Milestone
 
-The first playable map milestone is achieved when this repository can deterministically generate a finite, non-wrapping macro hex map from a seed and configuration, with enough data on each tile to support terrain layout, rivers, climate, biome assignment, and basic starting-area validation for later game integration.
+The first playable map milestone is achieved when this repository can deterministically generate a macro hex map from a seed and configuration, using a rectangular world-strip presentation with cylindrical east or west generation behavior, with enough data on each tile to support terrain layout, rivers, climate, biome assignment, and basic starting-area validation for later game integration.
 
 For that milestone, the generator should:
 

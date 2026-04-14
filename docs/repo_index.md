@@ -4,7 +4,7 @@ This is the authoritative navigation file for the repository. Read this file fir
 
 ## Project Purpose
 
-`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally map-focused: project scaffold, documentation, change tracking, stable domain objects, generation and layout helpers, a continent-first land and elevation pass, basin-aware hydrology with selected visible river channels, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a wrap-aware windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
+`RiftandReign` currently exists to provide the foundation for a deterministic map generator for a hex-based 4X strategy game. The current implementation is intentionally map-focused: project scaffold, documentation, change tracking, stable domain objects, generation and layout helpers, a continent-first land and elevation pass built from organic continent chains, mouth-upstream hydrology with selected visible river channels, first-pass biome classification, first-pass start suitability scoring, configurable CLI-driven map generation, a wrap-aware windowed debug viewer, and tested hex-grid math. Final start placement and later pipeline refinements are still not implemented.
 
 ## Recommended Reading Order
 
@@ -155,11 +155,11 @@ RiftandReign/
 - `src/rnr_mapgen/domain/`
   Purpose: stable coordinate and map-domain data models intended to survive future gameplay expansion.
 - `src/rnr_mapgen/fields.py`
-  Purpose: deterministic scalar-field generation for continent-shaped elevation, secondary landmasses, moisture, and latitude-aware temperature.
+  Purpose: deterministic scalar-field generation for organic continent chains, ocean-gap islands, ridge-driven ruggedness, moisture, and regionalized temperature.
 - `src/rnr_mapgen/generation/`
   Purpose: generation-layer modules for board construction, noise, and the high-level map pipeline.
 - `src/rnr_mapgen/hydrology.py`
-  Purpose: deterministic downhill routing, weighted runoff accumulation, selected river-channel marking, and river-aware ASCII preview helpers.
+  Purpose: deterministic downhill routing, weighted runoff accumulation, mouth-upstream visible river-network selection, and river-aware ASCII preview helpers.
 - `src/rnr_mapgen/main.py`
   Purpose: executable entry point that routes CLI requests into generation and rendering services.
 - `src/rnr_mapgen/noise.py`
@@ -250,11 +250,11 @@ Implemented now:
 
 - packaging and executable scaffold
 - pointy-top hex coordinate math
-- finite rectangular board creation with odd-row display layout and wrap-aware viewer presentation
-- deterministic macro world-shape fields for seam-aware bounded continent potential, ruggedness, moisture, and latitude-aware temperature
-- deterministic continent-first land and water classification plus continent-derived elevation and broad water classes
-- deterministic terrain-driven downhill routing, runoff accumulation, and selected river-channel marking
-- deterministic first-pass land-biome classification
+- finite rectangular board creation with odd-row display layout, cylindrical east or west generation neighbors, and wrap-aware viewer presentation
+- deterministic macro world-shape fields for seam-aware continent chains, ocean-gap islands, ridge-driven ruggedness, moisture, and regionalized temperature
+- deterministic continent-first land and water classification plus ridge-influenced elevation and broad water classes
+- deterministic terrain-driven downhill routing, runoff accumulation, and mouth-upstream visible river-network selection
+- deterministic first-pass land-biome classification with water-distance and terrain influence
 - deterministic first-pass start suitability scoring
 - configurable CLI-driven map generation for larger deterministic maps
 - lightweight windowed debug viewing of the current generated map

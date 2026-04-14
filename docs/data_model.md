@@ -131,4 +131,4 @@ The repository uses pointy-top axial coordinates. Neighbor logic should therefor
 
 Algorithm-facing helpers may convert to cube coordinates internally, but storage and public-facing interfaces remain axial.
 
-For the current finite board, neighbors outside the rectangular playable field are simply absent from `MapData.tiles`. There is no wraparound behavior. The rectangular world shape is therefore a display-layout concern rather than a topology change.
+For the current generator, north and south edges remain bounded by the rectangular playable field, while east and west neighbor traversal is wrapped cylindrically through board helpers. The rectangular world shape is therefore still a display concern for the player, but the generation graph now treats the map as horizontally continuous.

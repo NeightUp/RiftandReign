@@ -17,8 +17,8 @@ The generator is planned as a deterministic layered pipeline rather than a singl
 Current implementation note:
 
 - the repository now assigns deterministic normalized macro values to every tile before terrain classification
-- the current pass builds continent potential from multiple bounded continent regions, smaller island-group seeds, a preferred ocean seam corridor, and latitude-aware world-strip context
-- ruggedness is generated as a separate secondary field for mountain ranges and uplands so it can influence elevation without reshaping the whole world into directional bands
+- the current pass builds continent potential from organic continent blob chains, ocean-gap island groups, a preferred ocean seam corridor, and wrapped world-strip context
+- ruggedness is generated from separate ridge-chain lobes and regional noise so uplands read more like terrain systems and less like concentric interior bands
 - the resulting `elevation` value at this stage is temporary continent potential, not yet final terrain elevation
 
 Current configuration note:
@@ -34,8 +34,8 @@ Current configuration note:
 
 Current implementation note:
 
-- the repository now converts macro continent potential into a target land ratio, smooths the resulting landmask, removes tiny fragments, reopens the preferred world seam as a true ocean corridor, splits oversized supercontinents at weak saddles when needed, fills small inland holes, and reopens narrow low-elevation bridges between major ocean basins
-- final tile elevation is then derived from the cleaned continent mask, distance from coast, macro landmass potential, a separate ruggedness field, and a compact uplift-detail field
+- the repository now converts macro continent potential into a practical landmask, smooths it lightly, removes only the tiniest fragments, reopens the preferred world seam as a true ocean corridor, fills small inland holes, and reopens narrow low-elevation bridges between major ocean basins
+- final tile elevation is then derived from the cleaned continent mask, distance from coast, macro landmass potential, ridge-driven ruggedness, and compact uplift detail
 - water tiles are also assigned broad categories such as coast, deep ocean, inland sea, and lake
 
 ## 4. Hydrology
@@ -47,7 +47,7 @@ Current implementation note:
 Current implementation note:
 
 - the repository now computes one deterministic downhill receiver per land tile, including coherent coastal termination when rivers reach adjacent water
-- weighted flow accumulation and adaptive channel promotion are used to mark only meaningful drainage paths as visible rivers
+- weighted flow accumulation is then used to promote visible rivers from major mouths back upstream, producing main stems with meaningful tributaries rather than many separate drainage traces
 - basin filling, lake simulation, and refined hydrology behavior are intentionally deferred
 
 ## 5. Climate
@@ -64,7 +64,7 @@ Current implementation note:
 
 Current implementation note:
 
-- the repository now assigns a compact first-pass land-biome set from scalar fields, elevation, and light river support
+- the repository now assigns a compact first-pass land-biome set from scalar fields, elevation, water distance, and light river support
 - this pass is intentionally simple and is meant as a readable world layer rather than a final biome system
 
 ## 7. Start-Region Validation

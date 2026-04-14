@@ -15,12 +15,11 @@ UPLAND_RUNOFF_WEIGHT = 1.00
 COLD_RUNOFF_WEIGHT = 0.25
 DOWNHILL_EPSILON = 1e-6
 MIN_SOURCE_ELEVATION = 0.36
-MIN_SOURCE_FLOW = 6.0
-RIVER_FLOW_QUANTILE = 0.68
-MAJOR_RIVER_FLOW_QUANTILE = 0.86
-VISIBLE_CONTINUATION_FACTOR = 0.42
-MIN_VISIBLE_PATH_LENGTH = 3
-MAX_VISIBLE_RIVER_RATIO = 0.14
+MIN_SOURCE_FLOW = 7.0
+MOUTH_FLOW_QUANTILE = 0.86
+TRIBUTARY_FLOW_QUANTILE = 0.74
+MIN_TRIBUTARY_RATIO = 0.34
+MAX_VISIBLE_RIVER_RATIO = 0.12
 RIVER_STRENGTH_SCALE = 2.2
 
 
@@ -119,12 +118,13 @@ def _assign_downstream_receivers(map_data: MapData) -> dict:
         ]
 
         if downhill_land_neighbors:
-            receiver = min(
+            receiver = max(
                 downhill_land_neighbors,
                 key=lambda neighbor: (
-                    map_data.tiles[neighbor].elevation,
-                    map_data.tiles[neighbor].display_row,
-                    map_data.tiles[neighbor].display_col,
+                    tile.elevation - map_data.tiles[neighbor].elevation,
+                    map_data.tiles[neighbor].flow_accumulation,
+                    -map_data.tiles[neighbor].display_row,
+                    -map_data.tiles[neighbor].display_col,
                 ),
             )
             tile.river_flow_to = receiver
@@ -170,29 +170,26 @@ def _accumulate_flow(map_data: MapData) -> None:
 
 
 def _mark_visible_rivers(map_data: MapData, upstream_map: dict) -> None:
-    """Promote only meaningful drainage channels into visible rivers."""
+    """Promote coherent river networks from major mouths upstream."""
     land_tiles = [tile for tile in map_data.tiles.values() if not tile.is_water]
     if not land_tiles:
         return
 
     stream_order = _compute_strahler_order(map_data, upstream_map)
-    source_flow_threshold, continuation_threshold, major_flow_threshold = _channel_thresholds(
+    mouth_threshold, tributary_threshold = _channel_thresholds(
         map_data,
         land_tiles,
     )
-
-    candidate_sources = [
+    candidate_mouths = [
         tile.coord
         for tile in land_tiles
-        if _is_visible_source(
+        if _is_visible_mouth(
             map_data=map_data,
             coord=tile.coord,
-            upstream_map=upstream_map,
-            stream_order=stream_order,
-            source_flow_threshold=source_flow_threshold,
+            mouth_threshold=mouth_threshold,
         )
     ]
-    candidate_sources.sort(
+    candidate_mouths.sort(
         key=lambda coord: (
             -map_data.tiles[coord].flow_accumulation,
             -stream_order.get(coord, 1),
@@ -200,34 +197,27 @@ def _mark_visible_rivers(map_data: MapData, upstream_map: dict) -> None:
             map_data.tiles[coord].display_col,
         )
     )
-
     max_visible_tiles = max(1, int(len(land_tiles) * MAX_VISIBLE_RIVER_RATIO))
-    visible_paths: list[list] = []
-    used_tiles: set = set()
+    visible_tiles: set = set()
 
-    for source in candidate_sources:
-        path = _trace_visible_path(
+    for mouth in candidate_mouths:
+        _mark_branch_network(
             map_data=map_data,
-            source=source,
+            coord=mouth,
+            upstream_map=upstream_map,
             stream_order=stream_order,
-            continuation_threshold=continuation_threshold,
-            major_flow_threshold=major_flow_threshold,
-            used_tiles=used_tiles,
+            visible_tiles=visible_tiles,
+            mouth_threshold=mouth_threshold,
+            tributary_threshold=tributary_threshold,
+            max_visible_tiles=max_visible_tiles,
         )
-        if len(path) < MIN_VISIBLE_PATH_LENGTH:
-            continue
+        if len(visible_tiles) >= max_visible_tiles:
+            break
 
-        if len(used_tiles) + len(path) > max_visible_tiles:
-            continue
-
-        visible_paths.append(path)
-        used_tiles.update(path)
-
-    for path in visible_paths:
-        for coord in path:
-            tile = map_data.tiles[coord]
-            tile.has_river = True
-            tile.river_strength = _river_strength(tile.flow_accumulation, stream_order.get(coord, 1))
+    for coord in visible_tiles:
+        tile = map_data.tiles[coord]
+        tile.has_river = True
+        tile.river_strength = _river_strength(tile.flow_accumulation, stream_order.get(coord, 1))
 
 
 def _compute_strahler_order(map_data: MapData, upstream_map: dict) -> dict:
@@ -261,78 +251,106 @@ def _compute_strahler_order(map_data: MapData, upstream_map: dict) -> dict:
     return stream_order
 
 
-def _channel_thresholds(map_data: MapData, land_tiles: list) -> tuple[float, float, float]:
-    """Return source, continuation, and major-river flow thresholds."""
+def _channel_thresholds(map_data: MapData, land_tiles: list) -> tuple[float, float]:
+    """Return mouth and tributary flow thresholds."""
     flows = sorted(tile.flow_accumulation for tile in land_tiles)
-    source_index = min(len(flows) - 1, max(0, int(len(flows) * RIVER_FLOW_QUANTILE)))
-    major_index = min(len(flows) - 1, max(0, int(len(flows) * MAJOR_RIVER_FLOW_QUANTILE)))
-    source_flow = max(
+    mouth_index = min(len(flows) - 1, max(0, int(len(flows) * MOUTH_FLOW_QUANTILE)))
+    tributary_index = min(len(flows) - 1, max(0, int(len(flows) * TRIBUTARY_FLOW_QUANTILE)))
+    mouth_flow = max(
         MIN_SOURCE_FLOW,
         map_data.config.river_source_threshold,
-        flows[source_index],
+        flows[mouth_index],
     )
-    major_flow = max(source_flow * 1.45, flows[major_index])
-    continuation_flow = max(MIN_SOURCE_FLOW * VISIBLE_CONTINUATION_FACTOR, source_flow * VISIBLE_CONTINUATION_FACTOR)
-    return source_flow, continuation_flow, major_flow
+    tributary_flow = max(MIN_SOURCE_FLOW * 0.72, flows[tributary_index])
+    return mouth_flow, tributary_flow
 
 
-def _is_visible_source(
+def _is_visible_mouth(
+    map_data: MapData,
+    coord,
+    mouth_threshold: float,
+) -> bool:
+    """Return whether a tile is a valid visible-river mouth or coastal outlet."""
+    tile = map_data.tiles[coord]
+    if tile.flow_accumulation < mouth_threshold:
+        return False
+    if tile.river_flow_to is None:
+        return True
+
+    target = map_data.tiles[tile.river_flow_to]
+    if target.is_water:
+        return True
+
+    if tile.elevation < MIN_SOURCE_ELEVATION:
+        return False
+    return False
+
+
+def _mark_branch_network(
     map_data: MapData,
     coord,
     upstream_map: dict,
     stream_order: dict,
-    source_flow_threshold: float,
-) -> bool:
-    """Return whether a tile is a valid visible-river source."""
+    visible_tiles: set,
+    mouth_threshold: float,
+    tributary_threshold: float,
+    max_visible_tiles: int,
+) -> None:
+    """Mark a main stem and meaningful tributaries upstream from a mouth."""
+    if coord in visible_tiles or len(visible_tiles) >= max_visible_tiles:
+        return
+
     tile = map_data.tiles[coord]
-    if tile.flow_accumulation < source_flow_threshold:
-        return False
-    if tile.elevation < MIN_SOURCE_ELEVATION:
-        return False
-    if stream_order.get(coord, 1) < 1:
-        return False
-    return not any(
-        map_data.tiles[upstream].flow_accumulation >= source_flow_threshold
-        for upstream in upstream_map.get(coord, [])
+    if tile.is_water:
+        return
+
+    visible_tiles.add(coord)
+    upstreams = sorted(
+        upstream_map.get(coord, []),
+        key=lambda upstream: (
+            -map_data.tiles[upstream].flow_accumulation,
+            -stream_order.get(upstream, 1),
+            map_data.tiles[upstream].display_row,
+            map_data.tiles[upstream].display_col,
+        ),
     )
+    if not upstreams:
+        return
 
+    primary = upstreams[0]
+    primary_tile = map_data.tiles[primary]
+    if primary_tile.flow_accumulation >= tributary_threshold and primary_tile.elevation >= MIN_SOURCE_ELEVATION:
+        _mark_branch_network(
+            map_data=map_data,
+            coord=primary,
+            upstream_map=upstream_map,
+            stream_order=stream_order,
+            visible_tiles=visible_tiles,
+            mouth_threshold=mouth_threshold,
+            tributary_threshold=tributary_threshold,
+            max_visible_tiles=max_visible_tiles,
+        )
 
-def _trace_visible_path(
-    map_data: MapData,
-    source,
-    stream_order: dict,
-    continuation_threshold: float,
-    major_flow_threshold: float,
-    used_tiles: set,
-) -> list:
-    """Trace one visible river path from a source until coast, sink, or weak termination."""
-    path: list = []
-    current = source
-
-    while current is not None:
-        tile = map_data.tiles[current]
-        if tile.is_water or current in used_tiles:
-            break
-
-        path.append(current)
-        downstream = tile.river_flow_to
-        if downstream is None:
-            break
-
-        downstream_tile = map_data.tiles[downstream]
-        if downstream_tile.is_water:
-            break
-
-        if (
-            downstream_tile.flow_accumulation < continuation_threshold
-            and tile.flow_accumulation < major_flow_threshold
-            and stream_order.get(current, 1) <= 1
-        ):
-            break
-
-        current = downstream
-
-    return path
+    for tributary in upstreams[1:]:
+        tributary_tile = map_data.tiles[tributary]
+        if tributary_tile.flow_accumulation < tributary_threshold:
+            continue
+        if tributary_tile.elevation < MIN_SOURCE_ELEVATION:
+            continue
+        if tributary_tile.flow_accumulation < primary_tile.flow_accumulation * MIN_TRIBUTARY_RATIO:
+            continue
+        if stream_order.get(tributary, 1) < 2 and tributary_tile.flow_accumulation < mouth_threshold:
+            continue
+        _mark_branch_network(
+            map_data=map_data,
+            coord=tributary,
+            upstream_map=upstream_map,
+            stream_order=stream_order,
+            visible_tiles=visible_tiles,
+            mouth_threshold=mouth_threshold,
+            tributary_threshold=tributary_threshold,
+            max_visible_tiles=max_visible_tiles,
+        )
 
 
 def _local_runoff(tile) -> float:

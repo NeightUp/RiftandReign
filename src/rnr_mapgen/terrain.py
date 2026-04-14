@@ -10,22 +10,22 @@ from rnr_mapgen.noise import clamp_unit, hash_unit_interval, wrapped_value_noise
 from rnr_mapgen.types import MapData
 
 
-DEFAULT_LAND_RATIO = 0.44
-SEA_LEVEL_TO_LAND_RATIO_SCALE = 0.30
-MIN_LAND_RATIO = 0.38
-MAX_LAND_RATIO = 0.52
-INITIAL_SMOOTHING_PASSES = 2
-MIN_MAJOR_LAND_REGION = 10
+DEFAULT_LAND_RATIO = 0.46
+SEA_LEVEL_TO_LAND_RATIO_SCALE = 0.22
+MIN_LAND_RATIO = 0.40
+MAX_LAND_RATIO = 0.56
+INITIAL_SMOOTHING_PASSES = 1
+MIN_MAJOR_LAND_REGION = 4
 MIN_CONTINENT_REGION = 180
 MIN_INLAND_WATER_REGION = 5
 MIN_MAJOR_OCEAN_REGION = 16
 MIN_INLAND_SEA_REGION = 14
 SEAM_REOPEN_THRESHOLD = 0.70
-COASTAL_ELEVATION_BASE = 0.34
-INLAND_ELEVATION_WEIGHT = 0.18
-UPLIFT_WEIGHT = 0.14
-RUGGEDNESS_WEIGHT = 0.52
-RIDGE_DETAIL_WEIGHT = 0.08
+COASTAL_ELEVATION_BASE = 0.24
+INLAND_ELEVATION_WEIGHT = 0.10
+UPLIFT_WEIGHT = 0.18
+RUGGEDNESS_WEIGHT = 0.64
+RIDGE_DETAIL_WEIGHT = 0.10
 WATER_DEPTH_WEIGHT = 0.18
 RIDGE_DETAIL_SCALE = 9.0
 COAST_WIDTH_THRESHOLD = 2
@@ -107,7 +107,7 @@ def _initial_landmask(map_data: MapData, potential_scores: dict) -> dict:
         DEFAULT_LAND_RATIO + ((0.50 - map_data.config.sea_level_threshold) * SEA_LEVEL_TO_LAND_RATIO_SCALE)
     )
     target_land_ratio = max(MIN_LAND_RATIO, min(MAX_LAND_RATIO, target_land_ratio))
-    base_cutoff = clamp_unit(map_data.config.sea_level_threshold + 0.03)
+    base_cutoff = clamp_unit(map_data.config.sea_level_threshold - 0.05)
 
     landmask = {coord: adjusted_score > base_cutoff for coord, adjusted_score in adjusted_scores.items()}
     land_ratio = sum(1 for is_land in landmask.values() if is_land) / len(landmask)
@@ -168,13 +168,14 @@ def _fill_small_inland_water_regions(map_data: MapData, landmask: dict) -> None:
 
 def _reopen_world_seam(map_data: MapData, landmask: dict) -> None:
     """Keep the intended map seam as a genuine north-south ocean corridor."""
-    seam = _build_seam_profile(map_data)
+    seam = _build_seam_profile()
     for coord, tile in map_data.tiles.items():
         x_ratio, y_ratio = _tile_world_ratios(map_data, tile.display_col, tile.display_row)
-        seam_value = _seam_field(seam, x_ratio, y_ratio)
+        seam_value = _seam_field(seam, x_ratio)
         if seam_value < SEAM_REOPEN_THRESHOLD:
             continue
         landmask[coord] = False
+
 
 def _preserve_major_ocean_breaks(map_data: MapData, landmask: dict) -> None:
     """Reopen narrow blockers between large ocean basins."""
@@ -204,6 +205,8 @@ def _preserve_major_ocean_breaks(map_data: MapData, landmask: dict) -> None:
         if tile.elevation > 0.44:
             continue
         landmask[coord] = False
+
+
 def _apply_final_elevation(map_data: MapData, potential_scores: dict) -> None:
     """Derive final elevation from continent structure and distance to coast."""
     coastal_distance = _distance_from_water(map_data)
@@ -236,13 +239,14 @@ def _apply_final_elevation(map_data: MapData, potential_scores: dict) -> None:
 
         inland_factor = coastal_distance[coord] / max(max_land_distance, 1)
         polar_cooling = abs(((tile.display_row / max(map_data.height - 1, 1)) * 2.0) - 1.0)
+        upland_shape = clamp_unit((potential - 0.32) / 0.52)
         tile.elevation = clamp_unit(
             COASTAL_ELEVATION_BASE
             + (inland_factor * INLAND_ELEVATION_WEIGHT)
-            + (potential * UPLIFT_WEIGHT)
+            + (upland_shape * UPLIFT_WEIGHT)
             + (tile.ruggedness * RUGGEDNESS_WEIGHT)
             + ((detail - 0.5) * RIDGE_DETAIL_WEIGHT)
-            - (polar_cooling * 0.05)
+            - (polar_cooling * 0.07)
         )
 
 

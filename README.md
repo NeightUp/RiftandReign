@@ -30,8 +30,8 @@ In scope right now:
 - deterministic project data structures
 - pointy-top hex coordinate math
 - finite rectangular board construction with a pointy-top display layout that is being prepared for cylindrical east/west wrapping
-- deterministic macro continent shaping with a preferred ocean seam, 2-4 large landmasses, bounded continent regions, island groups, and latitude-aware world-strip behavior
-- deterministic continent-first land and water classification plus continent-derived elevation and broad water classes
+- deterministic macro continent shaping with a preferred ocean seam, 2-4 large landmasses, organic continent chains, island groups, and cylindrical east or west world-strip behavior
+- deterministic continent-first land and water classification plus ridge-influenced elevation and broad water classes
 - broad water classes for coast, deep ocean, inland sea, and lake tiles
 - deterministic basin-aware hydrology with downhill routing, flow accumulation, and selected visible river channels
 - deterministic first-pass biome classification
@@ -74,4 +74,4 @@ Start with [docs/repo_index.md](docs/repo_index.md). It is the authoritative nav
 
 ## Current Status
 
-The CLI now defaults to an `80x40` world and accepts explicit width, height, seed, sea level, river source threshold, and ASCII preview size. `--view` opens a pygame-based viewer that renders the same deterministic generated map as a pointy-top hex world strip, including wrap-aware horizontal rendering so east/west scrolling can evolve toward a cylindrical world presentation. The current world pass now builds continents from explicit bounded regions, keeps a reopened north-south ocean seam, splits oversized supercontinents at weak saddles, uses narrower coastal water bands, and keeps ruggedness separate from continent silhouette generation so the world does not collapse into directional stripes. Polar treatment, fog of war, map types, final tile art, gameplay systems, and final multi-player start placement are still intentionally deferred.
+The CLI now defaults to an `80x40` world and accepts explicit width, height, seed, sea level, river source threshold, and ASCII preview size. `--view` opens a pygame-based viewer that renders the same deterministic generated map as a pointy-top hex world strip, including wrap-aware horizontal rendering for cylindrical east or west scrolling. The current world pass now builds continents from organic continent chains and ocean-gap islands, keeps a reopened north-south ocean seam at the display boundary, derives ruggedness from ridge chains instead of climate bands, and promotes visible rivers from major mouths back through tributaries so the debug map reads more like a natural 4X world. Polar treatment, fog of war, map types, final tile art, gameplay systems, and final multi-player start placement are still intentionally deferred.

@@ -1,4 +1,4 @@
-from rnr_mapgen.board import axial_to_display, create_empty_map, display_to_axial, iter_board_coords
+from rnr_mapgen.board import axial_to_display, create_empty_map, display_to_axial, iter_board_coords, iter_neighbor_coords
 from rnr_mapgen.hex import HexCoord
 from rnr_mapgen.types import GeneratorConfig
 
@@ -83,3 +83,12 @@ def test_display_and_axial_layout_helpers_round_trip() -> None:
     coord = display_to_axial(display_col=4, display_row=6)
 
     assert axial_to_display(coord) == (4, 6)
+
+
+def test_iter_neighbor_coords_wraps_east_west_edges() -> None:
+    map_data = create_empty_map(GeneratorConfig(width=4, height=4, seed=0))
+    edge_coord = display_to_axial(display_col=0, display_row=1)
+
+    neighbors = iter_neighbor_coords(map_data, edge_coord)
+
+    assert display_to_axial(display_col=3, display_row=1) in neighbors

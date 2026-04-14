@@ -39,6 +39,9 @@ Replace the previous terrain and hydrology internals with a more standard contin
 - The follow-up macro pass now keeps continent silhouette generation bounded by explicit continent regions, then reopens the preferred seam as a true ocean corridor during terrain cleanup and splits oversized supercontinents at weak saddles when one landmass dominates the world.
 - Hydrology uses exactly one deterministic downhill receiver per land tile, which keeps the drainage graph tree-shaped and prevents inland visible-river bifurcation.
 - Visible rivers are promoted from the drainage graph by weighted runoff accumulation and adaptive thresholds, so the viewer shows selected channels instead of the full drainage mesh.
+- A further realism pass replaced bounded continent slabs with organic continent blob chains, added ocean-gap island groups, relaxed cleanup that was deleting too much land, and shifted ruggedness toward explicit ridge chains.
+- Visible river selection now begins from major mouths and traces upstream tributaries, which produces cleaner main stems and fewer shallow drainage-looking paths.
+- Biome assignment now uses water distance and surrounding terrain influence in addition to scalar climate values so the map does not read as simple latitude striping.
 - The existing CLI surface and debug viewer were preserved, including `--view`, text summaries, preview clipping, and Windows PowerShell workflow commands.
 - The codebase now has explicit `domain`, `generation`, `rendering`, and `application` layers, with top-level compatibility wrappers kept in place for a gradual transition.
 

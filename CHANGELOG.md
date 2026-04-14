@@ -90,3 +90,6 @@ This file records the high-level history of meaningful repository changes. Detai
 - Continued the refactor with explicit `domain`, `generation`, `rendering`, and `application` package layers, seam-aware continent shaping, narrower coastal water bands, and a separate ruggedness signal to break up concentric mountain and biome rings.
 - Corrected a regression where the macro world pass had started producing directional stripe patterns by simplifying continent generation back to continent clusters with only a soft seam reservation and secondary ruggedness shaping.
 - Tightened the macro world pass again around bounded continent regions, explicit seam reopening, and weak-saddle supercontinent splitting so default-style maps more often stay readable as separate continents instead of reconnecting into one blob.
+- Refactored the macro generator again around organic continent blob chains, ocean-gap island groups, lighter terrain cleanup, and ridge-driven uplands so continents keep more natural coastlines and secondary landmasses.
+- Reworked visible-river selection to start from major mouths and trace upstream tributaries, which reduces sewer-like drainage clutter and improves river hierarchy.
+- Updated first-pass biome assignment to use geography-aware water distance and terrain effects so climate expression is less visibly banded by latitude alone.
